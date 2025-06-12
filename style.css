@@ -411,3 +411,26 @@ body {
     width: 15px; /* Tamaño del checkbox */
     height: 15px; /* Tamaño del checkbox */
 }
+
+/* Styles for Chess Pieces */
+.pieza-simbolo {
+    /* Ensures the symbol is treated as a block element within the flex container (casilla) */
+    /* This helps with alignment and sizing if needed, though often not strictly necessary for simple text. */
+    display: inline-block;
+    text-align: center;
+    /* Ensure the piece is not hidden by default if other styles might affect it. */
+    visibility: visible;
+    opacity: 1;
+}
+
+.simbolo-blanco {
+    color: #FFFFFF; /* White color for white pieces */
+    /* Add a subtle text shadow to make white pieces more visible on light squares if needed */
+    text-shadow: 0 0 2px #333333;
+}
+
+.simbolo-negro {
+    color: #1E1E1E; /* A very dark (but not pure black) color for black pieces */
+    /* Add a subtle text shadow to make black pieces more visible on dark squares if needed */
+    text-shadow: 0 0 2px #CCCCCC;
+}
