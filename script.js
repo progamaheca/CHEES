@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ultimaCasillaOrigenEl = null;
     let ultimaCasillaDestinoEl = null;
     let reglaJaqueHabilitada = true;
+    let temporizadorMensajeEstado = null;
 
     const btnTiempo1Min = document.getElementById('btn_tiempo_1_min');
     const btnTiempo5Min = document.getElementById('btn_tiempo_5_min');
@@ -36,12 +37,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnDescargarMovimientos = document.getElementById('btn_descargar_movimientos');
     const simbolosBlancasCapturoEl = document.getElementById('simbolos_blancas_capturo');
     const simbolosNegrasCapturoEl = document.getElementById('simbolos_negras_capturo');
+    const mensajeEstadoJuegoContenedorEl = document.getElementById('mensaje_estado_juego_contenedor');
+    const mensajeEstadoJuegoTextoEl = document.getElementById('mensaje_estado_juego_texto');
+
 
     if (checkboxReglaJaque) {
         reglaJaqueHabilitada = checkboxReglaJaque.checked;
         checkboxReglaJaque.addEventListener('change', function() {
             reglaJaqueHabilitada = this.checked;
-            console.log("Regla de Jaque cambiada a:", reglaJaqueHabilitada);
             if (!reglaJaqueHabilitada) {
                 document.querySelectorAll('.en-jaque').forEach(casilla => {
                     casilla.classList.remove('en-jaque');
@@ -108,6 +111,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function mostrarMensajeTemporal(mensaje, duracionMs = 2500, tipo = 'error') {
+        if (!mensajeEstadoJuegoContenedorEl || !mensajeEstadoJuegoTextoEl) return;
+        if (temporizadorMensajeEstado) clearTimeout(temporizadorMensajeEstado);
+        mensajeEstadoJuegoTextoEl.textContent = mensaje;
+        mensajeEstadoJuegoContenedorEl.classList.remove('mensaje-error', 'mensaje-info');
+        mensajeEstadoJuegoContenedorEl.classList.add(`mensaje-${tipo}`);
+        mensajeEstadoJuegoContenedorEl.classList.add('mensaje-visible');
+        temporizadorMensajeEstado = setTimeout(() => {
+            mensajeEstadoJuegoContenedorEl.classList.remove('mensaje-visible');
+            temporizadorMensajeEstado = null;
+        }, duracionMs);
+    }
+
     function manejarClickCasilla(casillaClickeada) {
         if (!juegoIniciado) return;
         const piezaIdEnCasillaClick = casillaClickeada.dataset.piezaId;
@@ -115,18 +131,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!piezaSeleccionada) {
             limpiarResaltadoMovimientosPosibles();
-            if (piezaObjEnCasillaClick && piezaObjEnCasillaClick.color === turnoActual) {
-                piezaSeleccionada = {casillaElemento:casillaClickeada, piezaObjeto:piezaObjEnCasillaClick, posicionOriginalStr:casillaClickeada.dataset.posicion};
-                casillaClickeada.classList.add('seleccionada');
-                const movimientos = getMovimientosLegalesParaPieza(piezaSeleccionada.piezaObjeto, piezaSeleccionada.posicionOriginalStr);
-                movimientos.forEach(destinoStr => {
-                    const casillaDestinoEl = document.querySelector(`[data-posicion="${destinoStr}"]`);
-                    if (casillaDestinoEl) {
-                        casillaDestinoEl.classList.add('movimiento-posible');
-                        casillasElementosResaltadosComoPosibles.push(casillaDestinoEl);
-                    }
-                });
+            if (piezaObjEnCasillaClick) {
+                if (piezaObjEnCasillaClick.color === turnoActual) {
+                    piezaSeleccionada = {casillaElemento:casillaClickeada, piezaObjeto:piezaObjEnCasillaClick, posicionOriginalStr:casillaClickeada.dataset.posicion};
+                    casillaClickeada.classList.add('seleccionada');
+                    const movimientos = getMovimientosLegalesParaPieza(piezaSeleccionada.piezaObjeto, piezaSeleccionada.posicionOriginalStr);
+                    movimientos.forEach(destinoStr => {
+                        const casillaDestinoEl = document.querySelector(`[data-posicion="${destinoStr}"]`);
+                        if (casillaDestinoEl) {
+                            casillaDestinoEl.classList.add('movimiento-posible');
+                            casillasElementosResaltadosComoPosibles.push(casillaDestinoEl);
+                        }
+                    });
+                } else {
+                    mostrarMensajeTemporal("No es tu turno para mover una pieza de ese color.", 2500, 'error');
+                }
             }
+            // Si se hace clic en casilla vacía sin tener pieza seleccionada, no se hace nada más (ya se limpió resaltado).
         } else {
             const cOrigenEl = piezaSeleccionada.casillaElemento;
             const pMovidaObj = piezaSeleccionada.piezaObjeto;
@@ -191,91 +212,83 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(pCapRealArrayObj) pCapRealArrayObj.posicionActual=null;
                 }
 
-                // Mover pieza en el DOM y actualizar su estado en el array 'piezas'
-                casillaClickeada.textContent = pMovidaObj.simbolo;
-                casillaClickeada.dataset.piezaId = pMovidaObj.id;
-                cOrigenEl.textContent = '';
-                delete cOrigenEl.dataset.piezaId;
+                casillaClickeada.textContent = pMovidaObj.simbolo; casillaClickeada.dataset.piezaId = pMovidaObj.id;
+                cOrigenEl.textContent = ''; delete cOrigenEl.dataset.piezaId;
                 pMovidaObj.posicionActual = cDestinoStr;
 
-                // --- LÓGICA DE FIN DE PARTIDA Y REGISTRO DE MOVIMIENTO (REVISADA) ---
                 let finDelJuego = false;
                 let mensajeFinJuego = "";
                 const jugadorQueRealizoMovimiento = turnoActual;
                 const esCaptura = !!pEnDestinoOriginal;
-                // Generar notación BASE aquí, ANTES de cambiar de turno y ANTES de determinar sufijos.
-                // cOrigenStr es la posición original de la pieza que se mueve.
                 let notacionBaseDelMovimiento = formatearNotacionMovimiento(pMovidaObj, cOrigenStr, cDestinoStr, esCaptura);
                 let sufijoParaNotacion = "";
 
-                // 1. Verificar captura del rey (SOLO si la regla de jaque está DESACTIVADA)
                 if (!reglaJaqueHabilitada && pEnDestinoOriginal && pEnDestinoOriginal.tipo === 'rey') {
                     finDelJuego = true;
                     mensajeFinJuego = `¡Jugador ${jugadorQueRealizoMovimiento === 'blanco' ? 'Blanco' : 'Negro'} gana capturando al rey!`;
-                    // No hay sufijo de jaque/mate para este tipo de victoria.
                 }
 
-                // Si el juego no ha terminado por captura de rey, proceder a cambiar turno y evaluar jaque/mate/ahogado
                 if (!finDelJuego) {
-                    turnoActual = (jugadorQueRealizoMovimiento === 'blanco') ? 'negro' : 'blanco'; // Cambiar turno
-
-                    document.querySelectorAll('.en-jaque').forEach(el => el.classList.remove('en-jaque')); // Limpiar resaltados de jaque
-
+                    turnoActual = (jugadorQueRealizoMovimiento === 'blanco') ? 'negro' : 'blanco';
+                    document.querySelectorAll('.en-jaque').forEach(el => el.classList.remove('en-jaque'));
                     if (reglaJaqueHabilitada) {
-                        if (esJaqueMate(turnoActual)) { // ¿El jugador que AHORA debe responder está en Jaque Mate?
+                        if (esJaqueMate(turnoActual)) {
                             finDelJuego = true;
-                            mensajeFinJuego = `¡JAQUE MATE! Gana el jugador ${jugadorQueRealizoMovimiento}.`; // El que movió es el ganador
+                            mensajeFinJuego = `¡JAQUE MATE! Gana el jugador ${jugadorQueRealizoMovimiento}.`;
                             sufijoParaNotacion = "#";
-                            const posReyJM = encontrarPosicionRey(turnoActual); // Resaltar el rey en mate
+                            const posReyJM = encontrarPosicionRey(turnoActual);
                             if (posReyJM) document.querySelector(`[data-posicion="${posReyJM}"]`)?.classList.add('en-jaque');
-                        } else if (estaEnJaque(turnoActual)) { // ¿El jugador que AHORA debe responder está en Jaque simple?
+                        } else if (estaEnJaque(turnoActual)) {
                             const posReyJ = encontrarPosicionRey(turnoActual);
                             if (posReyJ) document.querySelector(`[data-posicion="${posReyJ}"]`)?.classList.add('en-jaque');
                             sufijoParaNotacion = "+";
-                            // El alert de jaque se hará después de actualizar el historial
                         }
                     }
-                    // Verificar Empate (Ahogado)
                     if (!finDelJuego && esEmpate(turnoActual)) {
                         finDelJuego = true;
                         mensajeFinJuego = "¡EMPATE (Ahogado)! La partida termina en tablas.";
                     }
                 }
 
-                // Actualizar historial con la notación final (base + sufijo)
                 const notacionFinalDelMovimiento = notacionBaseDelMovimiento + sufijoParaNotacion;
                 if (jugadorQueRealizoMovimiento === 'blanco') {
                     historialMovimientos.push({ numero: numeroDeMovimientoActual, blancas: notacionFinalDelMovimiento, negras: "" });
                 } else {
                     if (historialMovimientos.length > 0) {
                         historialMovimientos[historialMovimientos.length - 1].negras = notacionFinalDelMovimiento;
-                    } else { // Esto no debería ocurrir en un juego normal donde blancas mueven primero
-                        historialMovimientos.push({ numero: numeroDeMovimientoActual, blancas: "", negras: notacionFinalDelMovimiento });
+                    } else {
+                         historialMovimientos.push({ numero: numeroDeMovimientoActual, blancas: "", negras: notacionFinalDelMovimiento });
                     }
-                    // Incrementar número de movimiento solo después de que negras muevan
-                    // O si el juego termina por acción de blancas (ej. blancas capturan rey negro cuando regla de jaque está off)
                     if (!finDelJuego || (finDelJuego && jugadorQueRealizoMovimiento === 'negro')) {
                          numeroDeMovimientoActual++;
                     }
                 }
                 actualizarDisplayHistorialMovimientos();
-                actualizarIndicadorTurno(); // Actualiza display de turno y resalta reloj correcto
+                actualizarIndicadorTurno();
 
-                if (finDelJuego) {
-                    alert(mensajeFinJuego);
+                if(finDelJuego){
+                    mostrarMensajeTemporal(mensajeFinJuego, 60000, 'info');
                     deshabilitarMovimientoPiezas();
                     clearInterval(intervaloTemporizador);
                     if (checkboxReglaJaque) checkboxReglaJaque.disabled = true;
                 } else {
                     if (reglaJaqueHabilitada && sufijoParaNotacion === "+") {
-                         alert(`¡Jaque al rey ${turnoActual}!`); // Notificar jaque simple
+                         mostrarMensajeTemporal(`¡Jaque al rey ${turnoActual}!`, 3000, 'info');
                     }
                     iniciarOReanudarTemporizadorJugador();
                 }
-                // --- FIN LÓGICA DE FIN DE PARTIDA ---
+            } else { // Movimiento NO finalValido
+                if (piezaSeleccionada) { // Solo mostrar mensaje si se intentó mover una pieza seleccionada
+                     mostrarMensajeTemporal("Movimiento inválido.", 2500, 'error');
+                }
+                // La pieza seleccionada y sus resaltados de movimientos posibles permanecen.
             }
-            cOrigenEl.classList.remove('seleccionada');
-            piezaSeleccionada = null;
+            // Deseleccionar la pieza solo si el movimiento fue VÁLIDO.
+            // Si fue inválido, permanece seleccionada para que el usuario pueda intentar otro destino.
+            if (movFinalValido) {
+                 cOrigenEl.classList.remove('seleccionada');
+                 piezaSeleccionada = null;
+            }
         }
     }
 

@@ -342,6 +342,51 @@ body {
     box-shadow: none; /* Sin sombra cuando está deshabilitado */
 }
 
+/* Estilos para el Sistema de Mensajes de Estado/Error */
+#mensaje_estado_juego_contenedor {
+    position: fixed; /* Se mostrará fijo en la pantalla */
+    bottom: 20px; /* A 20px del borde inferior */
+    left: 50%; /* Centrado horizontalmente */
+    transform: translateX(-50%); /* Ajuste fino para el centrado */
+    padding: 10px 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15); /* Sombra sutil */
+    z-index: 1000; /* Asegurar que esté por encima de otros elementos */
+
+    opacity: 0; /* Oculto por defecto */
+    visibility: hidden; /* Oculto y no interactuable por defecto */
+    transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out; /* Transición suave */
+
+    /* Estilos base, pueden ser sobreescritos por clases de tipo */
+    background-color: #333; /* Fondo oscuro por defecto */
+    color: white; /* Texto blanco por defecto */
+    text-align: center;
+    min-width: 250px; /* Ancho mínimo */
+    max-width: 80%; /* Ancho máximo */
+}
+
+#mensaje_estado_juego_contenedor.mensaje-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+#mensaje_estado_juego_contenedor.mensaje-error {
+    background-color: #dc3545; /* Rojo para errores */
+    color: white;
+    border: 1px solid #c82333;
+}
+
+#mensaje_estado_juego_contenedor.mensaje-info {
+    background-color: #17a2b8; /* Azul/cian para información */
+    color: white;
+    border: 1px solid #138496;
+}
+
+#mensaje_estado_juego_texto { /* Estilo para el párrafo dentro del contenedor */
+    margin: 0;
+    font-size: 0.95em;
+}
+
 /* Estilos para la Configuración de Reglas */
 #configuracion_reglas {
     text-align: center;
