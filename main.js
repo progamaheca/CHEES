@@ -4,7 +4,7 @@ console.log("main.js cargado como módulo.");
 
 // --- Importaciones ---
 import { reglaJaqueHabilitada, checkboxReglaJaque } from './config.js';
-import { posicionACoordenadas, coordenadasAPosicion } from './util.js'; // formatearTiempo es usado por ui.js
+import { posicionACoordenadas, coordenadasAPosicion } from './util.js';
 import {
     piezas as arrayDePiezasGlobal,
     generarTablero as generarTableroVisual,
@@ -17,7 +17,7 @@ import {
     esMovimientoValidoAlfil, esMovimientoValidoReina, esMovimientoValidoRey,
     encontrarPosicionRey, estaEnJaque, getMovimientosLegalesParaPieza,
     esJaqueMate, esEmpate,
-    formatearNotacionMovimiento // Importar la función movida
+    formatearNotacionMovimiento
 } from './movimientos_validaciones.js';
 import * as ui from './ui.js';
 
@@ -84,6 +84,9 @@ function confirmarSeleccionTiempo(s){
     arrayDePiezasGlobal.forEach(p => {
         p.posicionActual = p.posicionOriginal;
         p.elementoPieza = null;
+        if (p.tipo === 'rey' || p.tipo === 'torre') {
+            p.haMovido = false;
+        }
     });
     if (contenedorTablero) {
         inicializarPiezasEnTableroDOM();
@@ -93,10 +96,7 @@ function confirmarSeleccionTiempo(s){
     iniciarOReanudarTemporizadorJugador();
 }
 
-// La función formatearNotacionMovimiento ha sido movida a movimientos_validaciones.js
-// y se importa desde allí.
-
-// --- Controlador Principal de Eventos (se moverá a logica_juego.js) ---
+// --- Controlador Principal de Eventos ---
 function manejarClickCasilla(casillaClickeadaEl) {
     if (!juegoIniciado || !casillaClickeadaEl) return;
 
@@ -154,6 +154,11 @@ function manejarClickCasilla(casillaClickeadaEl) {
         }
 
         if (movFinalValido) {
+            // Actualizar estado 'haMovido' para Reyes y Torres
+            if (pMovidaObj.tipo === 'rey' || pMovidaObj.tipo === 'torre') {
+                pMovidaObj.haMovido = true;
+            }
+
             ui.limpiarResaltadoMovimientosPosiblesUI();
             ui.aplicarResaltadoUltimoMovimientoUI(cOrigenEl, casillaClickeadaEl);
 
@@ -161,24 +166,69 @@ function manejarClickCasilla(casillaClickeadaEl) {
                 ui.actualizarPiezasCapturadasUI(pMovidaObj.color, pEnDestinoOriginal.simbolo);
                 const pCapRealArrayObj=arrayDePiezasGlobal.find(p=>p.id===pEnDestinoOriginal.id);
                 if(pCapRealArrayObj) pCapRealArrayObj.posicionActual=null;
+                if (pEnDestinoOriginal.elementoPieza && pEnDestinoOriginal.elementoPieza.parentElement) {
+                    pEnDestinoOriginal.elementoPieza.remove();
+                }
+                pEnDestinoOriginal.elementoPieza = null;
             }
 
+            // --- Lógica de Enroque: Mover Torre Adicionalmente ---
+            const esEnroque = (pMovidaObj.tipo === 'rey' && Math.abs(posicionACoordenadas(cDestinoStr).columna - posicionACoordenadas(cOrigenStr).columna) === 2 && reglaJaqueHabilitada);
+
+            if (esEnroque) {
+                let torre, torreNuevaPosStr, torreViejaPosStr;
+                const filaReyChar = cOrigenStr[1]; // Fila del rey ('1' u '8')
+
+                if (cDestinoStr[0] === 'g') { // Enroque corto (rey a g)
+                    torreViejaPosStr = `h${filaReyChar}`;
+                    torreNuevaPosStr = `f${filaReyChar}`;
+                } else { // Enroque largo (rey a c)
+                    torreViejaPosStr = `a${filaReyChar}`;
+                    torreNuevaPosStr = `d${filaReyChar}`;
+                }
+
+                torre = arrayDePiezasGlobal.find(p => p.posicionActual === torreViejaPosStr && p.tipo === 'torre' && p.color === pMovidaObj.color);
+
+                if (torre && torre.elementoPieza) {
+                    const casillaOrigenTorreEl = document.getElementById(torreViejaPosStr);
+                    const casillaDestinoTorreEl = document.getElementById(torreNuevaPosStr);
+
+                    if (casillaDestinoTorreEl) { // Mover DOM de la torre
+                        casillaDestinoTorreEl.appendChild(torre.elementoPieza);
+                        casillaDestinoTorreEl.dataset.piezaId = torre.id;
+                    }
+                    if (casillaOrigenTorreEl) casillaOrigenTorreEl.removeAttribute('data-piezaId');
+
+                    torre.posicionActual = torreNuevaPosStr; // Actualizar array de la torre
+                    torre.haMovido = true;
+                } else {
+                    console.error("Error crítico en enroque: No se encontró la torre o su elemento DOM.", torreViejaPosStr, torre);
+                }
+            }
+            // --- Fin Lógica de Enroque ---
+
+            // Mover pieza principal en el DOM (Rey u otra pieza)
             if (pMovidaObj.elementoPieza) {
                  casillaClickeadaEl.appendChild(pMovidaObj.elementoPieza);
             } else {
                  casillaClickeadaEl.textContent = pMovidaObj.simbolo;
+                 console.warn("Pieza movida no tenía elementoPieza asociado:", pMovidaObj);
             }
             cOrigenEl.innerHTML = '';
             casillaClickeadaEl.dataset.piezaId = pMovidaObj.id;
             delete cOrigenEl.dataset.piezaId;
+
+            // Actualizar estado lógico final de la pieza movida
             pMovidaObj.posicionActual = cDestinoStr;
 
             let finDelJuego = false;
             let mensajeFinJuego = "";
             const jugadorQueRealizoMovimiento = turnoActual;
             const esCaptura = !!pEnDestinoOriginal;
-            // Usar la función importada formatearNotacionMovimiento
-            let notacionBaseDelMovimiento = formatearNotacionMovimiento(pMovidaObj, cOrigenStr, cDestinoStr, esCaptura);
+            let notacionBaseDelMovimiento = formatearNotacionMovimiento(pMovidaObj, cOrigenStr, cDestinoStr, esCaptura, esEnroque ? (cDestinoStr[0] === 'g' ? 'O-O' : 'O-O-O') : "");
+            if (esEnroque) { // Sobrescribir notación para enroque
+                 notacionBaseDelMovimiento = (cDestinoStr[0] === 'g' ? 'O-O' : 'O-O-O');
+            }
             let sufijoParaNotacion = "";
 
             if (!reglaJaqueHabilitada && pEnDestinoOriginal && pEnDestinoOriginal.tipo === 'rey') {
@@ -221,7 +271,6 @@ function manejarClickCasilla(casillaClickeadaEl) {
                 }
             }
             ui.actualizarDisplayHistorialMovimientosUI(historialMovimientos);
-            // ui.actualizarIndicadorTurnoUI(turnoActual); // Ya se llama dentro de cambiarTurno()
 
             if(finDelJuego){
                 ui.mostrarMensajeTemporalUI(mensajeFinJuego, 60000, 'info');
@@ -245,17 +294,18 @@ function manejarClickCasilla(casillaClickeadaEl) {
     }
 }
 
-// --- Callback para el botón de descarga ---
-function descargarHistorial() {
-    if (historialMovimientos.length === 0) {
-        ui.mostrarMensajeTemporalUI("No hay movimientos para descargar.", 2000, 'info');
-        return;
-    }
-    const textoParaDescargar = ui.generarTextoHistorialUI(historialMovimientos, tiempoSeleccionado, reglaJaqueHabilitada);
-    const fecha = new Date();
-    const nombreArchivo = `partida_ajedrez_${fecha.getFullYear()}${String(fecha.getMonth() + 1).padStart(2, '0')}${String(fecha.getDate()).padStart(2, '0')}_${String(fecha.getHours()).padStart(2,'0')}${String(fecha.getMinutes()).padStart(2,'0')}.txt`;
-    ui.descargarArchivoTextoUI(nombreArchivo, textoParaDescargar);
+// Función para formatear notación (se moverá a logica_juego.js)
+function formatearNotacionMovimiento(pieza, casillaOrigenStr, casillaDestinoStr, esCaptura, overrideNotacion = "") {
+    if (overrideNotacion) return overrideNotacion; // Para enroque
+
+    let notacion = "";
+    const mapTipoALetra = { 'torre':'T', 'caballo':'C', 'alfil':'A', 'reina':'D', 'rey':'R' };
+    if (pieza.tipo !== 'peon') { notacion += mapTipoALetra[pieza.tipo] || ''; }
+    if (esCaptura) { if (pieza.tipo === 'peon' && casillaOrigenStr) { notacion += casillaOrigenStr.charAt(0); } notacion += "x"; }
+    notacion += casillaDestinoStr;
+    return notacion;
 }
+
 
 // --- Inicialización del Juego ---
 function inicializarJuego() {
@@ -278,6 +328,18 @@ function inicializarJuego() {
     } else {
         console.error("main.js: El contenedor del tablero (#contenedor_tablero) no fue encontrado en el DOM.");
     }
+}
+
+// Callback para el botón de descarga
+function descargarHistorial() {
+    if (historialMovimientos.length === 0) {
+        ui.mostrarMensajeTemporalUI("No hay movimientos para descargar.", 2000, 'info');
+        return;
+    }
+    const textoParaDescargar = ui.generarTextoHistorialUI(historialMovimientos, tiempoSeleccionado, reglaJaqueHabilitada);
+    const fecha = new Date();
+    const nombreArchivo = `partida_ajedrez_${fecha.getFullYear()}${String(fecha.getMonth() + 1).padStart(2, '0')}${String(fecha.getDate()).padStart(2, '0')}_${String(fecha.getHours()).padStart(2,'0')}${String(fecha.getMinutes()).padStart(2,'0')}.txt`;
+    ui.descargarArchivoTextoUI(nombreArchivo, textoParaDescargar);
 }
 
 document.addEventListener('DOMContentLoaded', inicializarJuego);

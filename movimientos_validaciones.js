@@ -1,8 +1,6 @@
 // movimientos_validaciones.js
 import { posicionACoordenadas, coordenadasAPosicion } from './util.js';
-// Importar getPiezaEnCasilla y piezas desde tablero.js
-import { getPiezaEnCasilla, piezas as arrayDePiezas } from './tablero.js';
-// Importar reglaJaqueHabilitada desde config.js
+import { getPiezaEnCasilla, piezas } from './tablero.js';
 import { reglaJaqueHabilitada } from './config.js';
 
 // --- Funciones de Validación de Movimiento de Piezas ---
@@ -15,18 +13,18 @@ export function esMovimientoValidoPeon(pieza, casillaOrigenStr, casillaDestinoSt
     const deltaCol = destino.columna - origen.columna;
     const deltaFila = destino.fila - origen.fila;
 
-    if (pieza.color === 'blanco') { // Blancas se mueven de fila mayor a menor (ej: 6 a 5, deltaFila = -1)
-        if (deltaCol === 0 && !piezaEnDestino) { // Movimiento vertical
+    if (pieza.color === 'blanco') {
+        if (deltaCol === 0 && !piezaEnDestino) {
             if (deltaFila === -1) return true;
             if (deltaFila === -2 && origen.fila === 6 && !getPiezaEnCasilla(coordenadasAPosicion({ fila: origen.fila - 1, columna: origen.columna }))) return true;
         }
-        if (Math.abs(deltaCol) === 1 && deltaFila === -1 && piezaEnDestino && piezaEnDestino.color === 'negro') return true; // Captura
-    } else { // Piezas negras se mueven de fila menor a mayor (ej: 1 a 2, deltaFila = 1)
-        if (deltaCol === 0 && !piezaEnDestino) { // Movimiento vertical
+        if (Math.abs(deltaCol) === 1 && deltaFila === -1 && piezaEnDestino && piezaEnDestino.color === 'negro') return true;
+    } else {
+        if (deltaCol === 0 && !piezaEnDestino) {
             if (deltaFila === 1) return true;
             if (deltaFila === 2 && origen.fila === 1 && !getPiezaEnCasilla(coordenadasAPosicion({ fila: origen.fila + 1, columna: origen.columna }))) return true;
         }
-        if (Math.abs(deltaCol) === 1 && deltaFila === 1 && piezaEnDestino && piezaEnDestino.color === 'blanco') return true; // Captura
+        if (Math.abs(deltaCol) === 1 && deltaFila === 1 && piezaEnDestino && piezaEnDestino.color === 'blanco') return true;
     }
     return false;
 }
@@ -35,16 +33,16 @@ export function esMovimientoValidoTorre(pieza, casillaOrigenStr, casillaDestinoS
     const origen = posicionACoordenadas(casillaOrigenStr);
     const destino = posicionACoordenadas(casillaDestinoStr);
     if (!origen || !destino) return false;
-    if (origen.fila === destino.fila && origen.columna === destino.columna) return false; // No se movió
-    if (origen.fila !== destino.fila && origen.columna !== destino.columna) return false; // No es horizontal ni vertical
+    if (origen.fila === destino.fila && origen.columna === destino.columna) return false;
+    if (origen.fila !== destino.fila && origen.columna !== destino.columna) return false;
 
-    if (origen.fila === destino.fila) { // Movimiento horizontal
+    if (origen.fila === destino.fila) {
         const colMenor = Math.min(origen.columna, destino.columna);
         const colMayor = Math.max(origen.columna, destino.columna);
         for (let c = colMenor + 1; c < colMayor; c++) {
             if (getPiezaEnCasilla(coordenadasAPosicion({ fila: origen.fila, columna: c }))) return false;
         }
-    } else { // Movimiento vertical
+    } else {
         const filaMenor = Math.min(origen.fila, destino.fila);
         const filaMayor = Math.max(origen.fila, destino.fila);
         for (let f = filaMenor + 1; f < filaMayor; f++) {
@@ -87,26 +85,91 @@ export function esMovimientoValidoReina(pieza, casillaOrigenStr, casillaDestinoS
            esMovimientoValidoAlfil(pieza, casillaOrigenStr, casillaDestinoStr);
 }
 
-export function esMovimientoValidoRey(pieza, casillaOrigenStr, casillaDestinoStr) {
+export function esMovimientoValidoRey(rey, casillaOrigenStr, casillaDestinoStr) {
     const origen = posicionACoordenadas(casillaOrigenStr);
     const destino = posicionACoordenadas(casillaDestinoStr);
+
     if (!origen || !destino) return false;
-    if (origen.fila === destino.fila && origen.columna === destino.columna) return false;
+    // El rey no se movió (esto es importante para la lógica de enroque, donde deltaColAbs es 2)
+    // if (origen.fila === destino.fila && origen.columna === destino.columna) return false; // Ya cubierto por delta checks
+
     const deltaFilaAbs = Math.abs(destino.fila - origen.fila);
     const deltaColAbs = Math.abs(destino.columna - origen.columna);
-    return deltaFilaAbs <= 1 && deltaColAbs <= 1;
+
+    // --- LÓGICA DE ENROQUE ---
+    if (reglaJaqueHabilitada && !rey.haMovido && deltaFilaAbs === 0 && deltaColAbs === 2) {
+        if (estaEnJaque(rey.color)) { // No se puede enrocar si el rey está en jaque
+            return false;
+        }
+
+        const filaRey = origen.fila; // La fila del rey (0 para negras, 7 para blancas)
+        const colorOponente = (rey.color === 'blanco' ? 'negro' : 'blanco');
+        const casillasAtacadasPorOponente = getCasillasAtacadasPor(colorOponente);
+
+        let torre, caminoDespejado = true;
+        let casillaPasoReyStr; // La casilla por la que el rey "pasa"
+        // La casilla destino del rey ya es casillaDestinoStr
+
+        if (destino.columna > origen.columna) { // Enroque corto (O-O), rey se mueve a la derecha
+            // Torre de lado h (columna 7 en índice 0-7)
+            torre = piezas.find(p => p.color === rey.color && p.tipo === 'torre' &&
+                                   p.posicionOriginal === coordenadasAPosicion({fila: filaRey, columna: 7}));
+            if (!torre || torre.haMovido) return false;
+
+            // Casillas entre rey y torre (ej: f1, g1 o f8, g8) deben estar vacías
+            for (let col = origen.columna + 1; col < 7; col++) { // No incluye la columna de la torre
+                if (getPiezaEnCasilla(coordenadasAPosicion({fila: filaRey, columna: col}))) {
+                    caminoDespejado = false; break;
+                }
+            }
+            casillaPasoReyStr = coordenadasAPosicion({fila: filaRey, columna: origen.columna + 1}); // f1 o f8
+        } else { // Enroque largo (O-O-O), rey se mueve a la izquierda
+            // Torre de lado a (columna 0 en índice 0-7)
+            torre = piezas.find(p => p.color === rey.color && p.tipo === 'torre' &&
+                                   p.posicionOriginal === coordenadasAPosicion({fila: filaRey, columna: 0}));
+            if (!torre || torre.haMovido) return false;
+
+            // Casillas entre rey y torre (ej: d1, c1, b1 o d8, c8, b8) deben estar vacías
+            for (let col = origen.columna - 1; col > 0; col--) { // No incluye la columna de la torre
+                if (getPiezaEnCasilla(coordenadasAPosicion({fila: filaRey, columna: col}))) {
+                    caminoDespejado = false; break;
+                }
+            }
+            casillaPasoReyStr = coordenadasAPosicion({fila: filaRey, columna: origen.columna - 1}); // d1 o d8
+        }
+
+        if (!caminoDespejado) return false;
+
+        // Casilla de origen, casilla de paso del rey y casilla destino del rey no deben estar atacadas
+        // (La casilla origen ya se verifica con estaEnJaque(rey.color) al inicio del enroque)
+        if (casillasAtacadasPorOponente.includes(casillaPasoReyStr) ||
+            casillasAtacadasPorOponente.includes(casillaDestinoStr)) {
+            return false;
+        }
+
+        // Si todas las condiciones pasan, el enroque es un movimiento válido del rey
+        return true;
+    }
+    // --- FIN LÓGICA DE ENROQUE ---
+
+    // Movimiento normal del rey (una casilla)
+    if (deltaFilaAbs <= 1 && deltaColAbs <= 1) {
+        return true;
+    }
+
+    return false;
 }
 
-// --- Funciones de Lógica de Jaque y Jaque Mate ---
 
+// --- Funciones de Lógica de Jaque y Jaque Mate ---
 export function encontrarPosicionRey(colorRey) {
-    const rey = arrayDePiezas.find(p => p.tipo === 'rey' && p.color === colorRey && p.posicionActual);
+    const rey = piezas.find(p => p.tipo === 'rey' && p.color === colorRey && p.posicionActual);
     return rey ? rey.posicionActual : null;
 }
 
 export function getCasillasAtacadasPor(colorAtacante) {
     const casillasAtacadas = new Set();
-    const piezasDelAtacante = arrayDePiezas.filter(p => p.color === colorAtacante && p.posicionActual);
+    const piezasDelAtacante = piezas.filter(p => p.color === colorAtacante && p.posicionActual);
 
     for (const pieza of piezasDelAtacante) {
         const origenStr = pieza.posicionActual;
@@ -147,7 +210,7 @@ export function getMovimientosLegalesParaPieza(piezaConsiderada, casillaOrigenAc
             const casillaDestinoStr = coordenadasAPosicion({ fila: i, columna: j });
             if (casillaOrigenActualStr === casillaDestinoStr) continue;
             let esMovimientoTipoValido = false;
-            const piezaEnDestinoEval = getPiezaEnCasilla(casillaDestinoStr); // Usa la importada de tablero.js
+            const piezaEnDestinoEval = getPiezaEnCasilla(casillaDestinoStr);
             if (piezaEnDestinoEval && piezaEnDestinoEval.color === piezaConsiderada.color) {
                 esMovimientoTipoValido = false;
             } else {
@@ -164,14 +227,14 @@ export function getMovimientosLegalesParaPieza(piezaConsiderada, casillaOrigenAc
                     continue;
                 }
                 const idPiezaCapturada = piezaEnDestinoEval ? piezaEnDestinoEval.id : null;
-                const posicionOriginalPiezaMovida = piezaConsiderada.posicionActual; // Guardar antes de simular
+                const posicionOriginalPiezaMovida = piezaConsiderada.posicionActual;
                 piezaConsiderada.posicionActual = casillaDestinoStr;
-                if (idPiezaCapturada) { const pCapSim = arrayDePiezas.find(p => p.id === idPiezaCapturada); if (pCapSim) pCapSim.posicionActual = null; }
+                if (idPiezaCapturada) { const pCapSim = piezas.find(p => p.id === idPiezaCapturada); if (pCapSim) pCapSim.posicionActual = null; }
 
                 let autoJaque = estaEnJaque(piezaConsiderada.color);
 
-                piezaConsiderada.posicionActual = posicionOriginalPiezaMovida; // Revertir
-                if (idPiezaCapturada) { const pCapSim = arrayDePiezas.find(p => p.id === idPiezaCapturada); if (pCapSim) pCapSim.posicionActual = casillaDestinoStr; } // Revertir captura
+                piezaConsiderada.posicionActual = posicionOriginalPiezaMovida;
+                if (idPiezaCapturada) { const pCapSim = piezas.find(p => p.id === idPiezaCapturada); if (pCapSim) pCapSim.posicionActual = casillaDestinoStr; }
 
                 if (!autoJaque) { movimientosLegalesParaEstaPieza.push(casillaDestinoStr); }
             }
@@ -182,7 +245,7 @@ export function getMovimientosLegalesParaPieza(piezaConsiderada, casillaOrigenAc
 
 export function getTodosMovimientosLegalesPosibles(colorJugador) {
     const movimientosLegales = [];
-    const piezasDelJugadorActivas = arrayDePiezas.filter(p => p.color === colorJugador && p.posicionActual);
+    const piezasDelJugadorActivas = piezas.filter(p => p.color === colorJugador && p.posicionActual);
     for (const pieza of piezasDelJugadorActivas) {
         const movimientosParaEstaPieza = getMovimientosLegalesParaPieza(pieza, pieza.posicionActual);
         movimientosParaEstaPieza.forEach(destino => {
@@ -203,15 +266,6 @@ export function esEmpate(colorJugadorTurno) {
     return getTodosMovimientosLegalesPosibles(colorJugadorTurno).length === 0;
 }
 
-/**
- * Formatea la notación algebraica básica para un movimiento.
- * No incluye sufijos de jaque/jaque mate, estos se añaden después.
- * @param {object} pieza - El objeto de la pieza que se mueve.
- * @param {string} casillaOrigenStr - La posición de origen de la pieza (ej: "e2").
- * @param {string} casillaDestinoStr - La posición de destino de la pieza (ej: "e4").
- * @param {boolean} esCaptura - True si el movimiento es una captura.
- * @returns {string} Notación del movimiento (ej: "Pe4", "Cxf3", "Td1").
- */
 export function formatearNotacionMovimiento(pieza, casillaOrigenStr, casillaDestinoStr, esCaptura) {
     let notacion = "";
     const mapTipoALetra = {
@@ -228,7 +282,6 @@ export function formatearNotacionMovimiento(pieza, casillaOrigenStr, casillaDest
 
     if (esCaptura) {
         if (pieza.tipo === 'peon') {
-            // Para capturas de peón, se incluye la columna de origen. Ej: "exd5"
             const origenCoords = posicionACoordenadas(casillaOrigenStr);
             if (origenCoords) {
                  notacion += String.fromCharCode('a'.charCodeAt(0) + origenCoords.columna);
@@ -237,8 +290,5 @@ export function formatearNotacionMovimiento(pieza, casillaOrigenStr, casillaDest
         notacion += "x";
     }
     notacion += casillaDestinoStr;
-
-    // Los sufijos de Jaque ("+") o Jaque Mate ("#") se añadirán externamente
-    // después de llamar a esta función y evaluar el estado del juego resultante.
     return notacion;
 }
