@@ -202,3 +202,43 @@ export function esEmpate(colorJugadorTurno) {
     if (reglaJaqueHabilitada && estaEnJaque(colorJugadorTurno)) return false;
     return getTodosMovimientosLegalesPosibles(colorJugadorTurno).length === 0;
 }
+
+/**
+ * Formatea la notación algebraica básica para un movimiento.
+ * No incluye sufijos de jaque/jaque mate, estos se añaden después.
+ * @param {object} pieza - El objeto de la pieza que se mueve.
+ * @param {string} casillaOrigenStr - La posición de origen de la pieza (ej: "e2").
+ * @param {string} casillaDestinoStr - La posición de destino de la pieza (ej: "e4").
+ * @param {boolean} esCaptura - True si el movimiento es una captura.
+ * @returns {string} Notación del movimiento (ej: "Pe4", "Cxf3", "Td1").
+ */
+export function formatearNotacionMovimiento(pieza, casillaOrigenStr, casillaDestinoStr, esCaptura) {
+    let notacion = "";
+    const mapTipoALetra = {
+        'torre': 'T',
+        'caballo': 'C',
+        'alfil': 'A',
+        'reina': 'D',
+        'rey': 'R'
+    };
+
+    if (pieza.tipo !== 'peon') {
+        notacion += mapTipoALetra[pieza.tipo] || '';
+    }
+
+    if (esCaptura) {
+        if (pieza.tipo === 'peon') {
+            // Para capturas de peón, se incluye la columna de origen. Ej: "exd5"
+            const origenCoords = posicionACoordenadas(casillaOrigenStr);
+            if (origenCoords) {
+                 notacion += String.fromCharCode('a'.charCodeAt(0) + origenCoords.columna);
+            }
+        }
+        notacion += "x";
+    }
+    notacion += casillaDestinoStr;
+
+    // Los sufijos de Jaque ("+") o Jaque Mate ("#") se añadirán externamente
+    // después de llamar a esta función y evaluar el estado del juego resultante.
+    return notacion;
+}

@@ -4,7 +4,7 @@ console.log("main.js cargado como módulo.");
 
 // --- Importaciones ---
 import { reglaJaqueHabilitada, checkboxReglaJaque } from './config.js';
-import { posicionACoordenadas, coordenadasAPosicion } from './util.js';
+import { posicionACoordenadas, coordenadasAPosicion } from './util.js'; // formatearTiempo es usado por ui.js
 import {
     piezas as arrayDePiezasGlobal,
     generarTablero as generarTableroVisual,
@@ -16,13 +16,14 @@ import {
     esMovimientoValidoPeon, esMovimientoValidoTorre, esMovimientoValidoCaballo,
     esMovimientoValidoAlfil, esMovimientoValidoReina, esMovimientoValidoRey,
     encontrarPosicionRey, estaEnJaque, getMovimientosLegalesParaPieza,
-    esJaqueMate, esEmpate
+    esJaqueMate, esEmpate,
+    formatearNotacionMovimiento // Importar la función movida
 } from './movimientos_validaciones.js';
 import * as ui from './ui.js';
 
-// --- Estado Principal del Juego (en main.js) ---
+// --- Estado Principal del Juego ---
 let turnoActual = 'blanco';
-let piezaSeleccionada = null; // { casillaElemento, piezaObjeto, posicionOriginalStr }
+let piezaSeleccionada = null;
 let juegoIniciado = false;
 let historialMovimientos = [];
 let numeroDeMovimientoActual = 1;
@@ -32,7 +33,7 @@ let tiempoRestanteBlancas = tiempoSeleccionado;
 let tiempoRestanteNegras = tiempoSeleccionado;
 let intervaloTemporizador = null;
 
-// --- Funciones de Lógica de Juego / Control de Flujo (en main.js) ---
+// --- Funciones de Lógica de Juego / Control de Flujo ---
 function cambiarTurno() {
     turnoActual = (turnoActual === 'blanco' ? 'negro' : 'blanco');
     ui.actualizarIndicadorTurnoUI(turnoActual);
@@ -43,60 +44,44 @@ function deshabilitarMovimientoPiezas() {
     ui.deshabilitarCheckboxReglaJaqueUI(true);
 }
 
-function tickTemporizador() {
-    if (turnoActual === 'blanco') {
-        tiempoRestanteBlancas--;
-        if (tiempoRestanteBlancas < 0) tiempoRestanteBlancas = 0;
-    } else {
-        tiempoRestanteNegras--;
-        if (tiempoRestanteNegras < 0) tiempoRestanteNegras = 0;
-    }
+function tickTemporizador(){
+    if(turnoActual==='blanco'){tiempoRestanteBlancas--;if(tiempoRestanteBlancas<0)tiempoRestanteBlancas=0;}
+    else{tiempoRestanteNegras--;if(tiempoRestanteNegras<0)tiempoRestanteNegras=0;}
     ui.actualizarVisualizacionTiemposIndividualesUI(tiempoRestanteBlancas, tiempoRestanteNegras, tiempoSeleccionado);
-
-    const tiempoAgotado = (turnoActual === 'blanco' && tiempoRestanteBlancas <= 0) ||
-                         (turnoActual === 'negro' && tiempoRestanteNegras <= 0);
-
-    if (tiempoAgotado) {
+    const tA=(turnoActual==='blanco'&&tiempoRestanteBlancas<=0)||(turnoActual==='negro'&&tiempoRestanteNegras<=0);
+    if(tA){
         clearInterval(intervaloTemporizador);
-        const perdedor = turnoActual; // El jugador cuyo turno corría cuando se acabó el tiempo
-        const ganador = (perdedor === 'blanco' ? 'Negras' : 'Blancas'); // El oponente gana
+        const perdedor = turnoActual;
+        const ganador = (perdedor === 'blanco' ? 'Negras' : 'Blancas');
         ui.mostrarMensajeTemporalUI(`¡Tiempo agotado! Jugador ${perdedor} pierde. Gana Jugador ${ganador}.`, 60000, 'info');
         deshabilitarMovimientoPiezas();
     }
 }
 
-function iniciarOReanudarTemporizadorJugador() {
+function iniciarOReanudarTemporizadorJugador(){
     clearInterval(intervaloTemporizador);
-    // Pasar tiempoSeleccionado como fallback si los tiempos restantes son null (inicio de juego antes de confirmar tiempo)
     ui.actualizarVisualizacionTiemposIndividualesUI(tiempoRestanteBlancas, tiempoRestanteNegras, tiempoSeleccionado);
     if (juegoIniciado) {
-        intervaloTemporizador = setInterval(tickTemporizador, 1000);
+        intervaloTemporizador = setInterval(tickTemporizador,1000);
     }
 }
 
-function confirmarSeleccionTiempo(segundos) {
-    tiempoSeleccionado = segundos;
-    tiempoRestanteBlancas = tiempoSeleccionado;
-    tiempoRestanteNegras = tiempoSeleccionado;
+function confirmarSeleccionTiempo(s){
+    tiempoSeleccionado=s;tiempoRestanteBlancas=s;tiempoRestanteNegras=s;
 
     ui.ocultarSeleccionTiempoUI();
+    ui.deshabilitarCheckboxReglaJaqueUI(false);
     ui.actualizarVisualizacionTiemposIndividualesUI(tiempoRestanteBlancas, tiempoRestanteNegras, tiempoSeleccionado);
 
     juegoIniciado = true;
-    ui.deshabilitarCheckboxReglaJaqueUI(false); // Habilitar el checkbox al inicio de una nueva partida
 
     ui.limpiarTableroDeClasesJuegoUI();
-    // Reiniciar historial
     historialMovimientos = [];
     numeroDeMovimientoActual = 1;
     ui.actualizarDisplayHistorialMovimientosUI(historialMovimientos);
-    ui.actualizarEstadoBotonDescargaUI(false); // El botón de descarga se deshabilita
+    ui.actualizarEstadoBotonDescargaUI(false);
 
-    // Limpiar áreas de piezas capturadas (se necesitaría una función en ui.js para esto)
-    // ui.limpiarPiezasCapturadasUI(); // Asumiendo que esta función existe en ui.js
-
-    // Reinicializar piezas a sus posiciones originales
-    arrayDePiezasGlobal.forEach(p => { // Usar el array importado
+    arrayDePiezasGlobal.forEach(p => {
         p.posicionActual = p.posicionOriginal;
         p.elementoPieza = null;
     });
@@ -108,7 +93,10 @@ function confirmarSeleccionTiempo(segundos) {
     iniciarOReanudarTemporizadorJugador();
 }
 
-// --- Controlador Principal de Eventos ---
+// La función formatearNotacionMovimiento ha sido movida a movimientos_validaciones.js
+// y se importa desde allí.
+
+// --- Controlador Principal de Eventos (se moverá a logica_juego.js) ---
 function manejarClickCasilla(casillaClickeadaEl) {
     if (!juegoIniciado || !casillaClickeadaEl) return;
 
@@ -189,7 +177,7 @@ function manejarClickCasilla(casillaClickeadaEl) {
             let mensajeFinJuego = "";
             const jugadorQueRealizoMovimiento = turnoActual;
             const esCaptura = !!pEnDestinoOriginal;
-            // formatearNotacionMovimiento aún es local en main.js
+            // Usar la función importada formatearNotacionMovimiento
             let notacionBaseDelMovimiento = formatearNotacionMovimiento(pMovidaObj, cOrigenStr, cDestinoStr, esCaptura);
             let sufijoParaNotacion = "";
 
@@ -199,8 +187,7 @@ function manejarClickCasilla(casillaClickeadaEl) {
             }
 
             if (!finDelJuego) {
-                // Cambiar turno ANTES de evaluar jaque/mate sobre el oponente
-                cambiarTurno(); // Esto llama a ui.actualizarIndicadorTurnoUI internamente
+                cambiarTurno();
                 ui.actualizarResaltadoCasillaJaqueUI(null, false);
 
                 if (reglaJaqueHabilitada) {
@@ -247,7 +234,7 @@ function manejarClickCasilla(casillaClickeadaEl) {
                 iniciarOReanudarTemporizadorJugador();
             }
         } else {
-            if (piezaSeleccionada) { // Solo mostrar mensaje si el jugador intentó un movimiento inválido
+            if (piezaSeleccionada) {
                  ui.mostrarMensajeTemporalUI("Movimiento inválido.", 2500, 'error');
             }
         }
@@ -258,20 +245,21 @@ function manejarClickCasilla(casillaClickeadaEl) {
     }
 }
 
-// formatearNotacionMovimiento se moverá a logica_juego.js
-function formatearNotacionMovimiento(pieza, casillaOrigenStr, casillaDestinoStr, esCaptura, sufijoNotacion = "") {
-    let notacion = "";
-    const mapTipoALetra = { 'torre':'T', 'caballo':'C', 'alfil':'A', 'reina':'D', 'rey':'R' };
-    if (pieza.tipo !== 'peon') { notacion += mapTipoALetra[pieza.tipo] || ''; }
-    if (esCaptura) { if (pieza.tipo === 'peon' && casillaOrigenStr) { notacion += casillaOrigenStr.charAt(0); } notacion += "x"; }
-    notacion += casillaDestinoStr;
-    notacion += sufijoNotacion;
-    return notacion;
+// --- Callback para el botón de descarga ---
+function descargarHistorial() {
+    if (historialMovimientos.length === 0) {
+        ui.mostrarMensajeTemporalUI("No hay movimientos para descargar.", 2000, 'info');
+        return;
+    }
+    const textoParaDescargar = ui.generarTextoHistorialUI(historialMovimientos, tiempoSeleccionado, reglaJaqueHabilitada);
+    const fecha = new Date();
+    const nombreArchivo = `partida_ajedrez_${fecha.getFullYear()}${String(fecha.getMonth() + 1).padStart(2, '0')}${String(fecha.getDate()).padStart(2, '0')}_${String(fecha.getHours()).padStart(2,'0')}${String(fecha.getMinutes()).padStart(2,'0')}.txt`;
+    ui.descargarArchivoTextoUI(nombreArchivo, textoParaDescargar);
 }
-
 
 // --- Inicialización del Juego ---
 function inicializarJuego() {
+    console.log("main.js: Inicializando juego...");
     if (contenedorTablero) {
         generarTableroVisual(manejarClickCasilla);
         inicializarPiezasEnTableroDOM();
@@ -281,20 +269,14 @@ function inicializarJuego() {
         ui.actualizarDisplayHistorialMovimientosUI(historialMovimientos);
         ui.limpiarResaltadoUltimoMovimientoUI();
         deshabilitarMovimientoPiezas();
-        ui.deshabilitarCheckboxReglaJaqueUI(false); // Asegurar que esté habilitado al inicio
+        ui.deshabilitarCheckboxReglaJaqueUI(false);
 
         ui.configurarListenersBotonesTiempoUI(confirmarSeleccionTiempo);
-        ui.configurarListenerDescargaUI(() => {
-            if(historialMovimientos.length === 0){ ui.mostrarMensajeTemporalUI("No hay movimientos para descargar.", 2000, 'info'); return;}
-            const txt=ui.generarTextoHistorialUI(historialMovimientos, tiempoSeleccionado, reglaJaqueHabilitada);
-            const f=new Date();
-            const nomArch=`partida_ajedrez_${f.getFullYear()}${String(f.getMonth()+1).padStart(2,'0')}${String(f.getDate()).padStart(2,'0')}_${String(f.getHours()).padStart(2,'0')}${String(f.getMinutes()).padStart(2,'0')}.txt`;
-            ui.descargarArchivoTextoUI(nomArch,txt);
-        });
+        ui.configurarListenerDescargaUI(descargarHistorial);
         ui.actualizarEstadoBotonDescargaUI(historialMovimientos.length > 0);
 
     } else {
-        console.error("El contenedor del tablero (#contenedor_tablero) no fue encontrado en el DOM (desde main.js).");
+        console.error("main.js: El contenedor del tablero (#contenedor_tablero) no fue encontrado en el DOM.");
     }
 }
 
