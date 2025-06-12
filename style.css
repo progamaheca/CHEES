@@ -1,0 +1,72 @@
+/* Estilos generales del cuerpo */
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    background-color: #f0f0f0; /* Color de fondo general */
+}
+
+/* Contenedor del tablero de ajedrez */
+#contenedor_tablero {
+    display: grid;
+    grid-template-columns: repeat(8, 50px); /* 8 columnas de 50px cada una */
+    grid-template-rows: repeat(8, 50px);    /* 8 filas de 50px cada una */
+    width: 400px; /* Ancho total del tablero */
+    height: 400px; /* Alto total del tablero */
+    border: 5px solid #333; /* Borde oscuro alrededor del tablero */
+    margin-top: 20px;
+}
+
+/* Estilos para las casillas del tablero (se agregarán más con JavaScript) */
+.casilla {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 38px; /* Tamaño de las piezas de ajedrez (Unicode) */
+    cursor: pointer; /* Indica que las casillas son clickeables */
+}
+
+/* Colores de las casillas */
+.casilla.blanca {
+    background-color: #f0d9b5; /* Color madera clara */
+}
+
+.casilla.negra {
+    background-color: #b58863; /* Color madera oscura */
+    /* El color del texto (piezas) se manejará por JS si es necesario,
+       o se puede definir un color base para las piezas oscuras aquí si se prefiere.
+       Por ejemplo: color: #fff; si todas las piezas negras deben ser blancas.
+       Pero los símbolos Unicode de ajedrez ya tienen colores inherentes (negro/blanco).
+    */
+}
+
+/* Estilo para resaltar la casilla seleccionada */
+.casilla.seleccionada {
+    background-color: #6b90a5; /* Un azulado para indicar selección */
+    box-shadow: inset 0 0 5px #333;
+}
+
+
+/* Sección para mostrar el temporizador */
+#mostrar_tiempo {
+    margin-top: 20px;
+    font-size: 1.5em;
+    padding: 10px;
+    border: 2px solid #333;
+    background-color: #fff;
+    border-radius: 5px;
+}
+
+/* Sección para mostrar el turno del jugador */
+#mostrar_turno_jugador {
+    margin-top: 15px;
+    font-size: 1.2em;
+    padding: 8px;
+    border: 2px solid #555;
+    background-color: #e0e0e0;
+    border-radius: 5px;
+}
