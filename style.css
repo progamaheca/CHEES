@@ -111,6 +111,14 @@ body {
     /* outline: 3px solid red; */
 }
 
+.ultimo-mov-origen {
+    background-color: rgba(200, 200, 150, 0.4) !important; /* Un amarillo/beige muy claro y semitransparente */
+}
+
+.ultimo-mov-destino {
+    background-color: rgba(220, 220, 170, 0.6) !important; /* Un amarillo/beige claro semitransparente, ligeramente más opaco o diferente tono */
+}
+
 .movimiento-posible {
     background-color: rgba(255, 192, 203, 0.6) !important; /* Rosado claro con algo de transparencia */
     /* Alternativa: un borde sutil si el fondo interfiere mucho con los colores de las casillas
@@ -120,51 +128,68 @@ body {
 /* Estilos para la información de jugadores y temporizadores individuales */
 #info_jugadores {
     display: flex;
-    justify-content: space-around; /* Distribuye espacio alrededor de los items */
-    align-items: center; /* Centra verticalmente los items si tienen alturas diferentes */
-    flex-wrap: wrap; /* Permite que los elementos se ajusten si no caben en una línea */
+    justify-content: space-between; /* Para separar las áreas de los dos jugadores */
+    align-items: flex-start; /* Alinear al inicio si las alturas varían */
+    flex-wrap: wrap;
     padding: 10px;
-    margin-top: 10px; /* Ajuste de margen superior */
     margin-bottom: 15px;
-    background-color: #e9e9e9; /* Un fondo ligero para la sección */
-    border-radius: 8px; /* Bordes más redondeados */
-    width: 90%; /* Ancho relativo al contenedor padre */
-    max-width: 600px; /* Un ancho máximo para mantener la estética */
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Sombra sutil */
+    background-color: #f0f0f0; /* Ya definido, mantener o ajustar */
+    border-radius: 5px;
+    /* width: 90%; Se quita para que los .area-jugador definan el ancho total */
+    max-width: 700px; /* Ajustar si es necesario */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.area-jugador {
+    display: flex;
+    flex-direction: column; /* Apilar temporizador y capturadas verticalmente */
+    align-items: center; /* Centrar items dentro del área del jugador */
+    margin: 5px;
+    padding: 10px;
+    background-color: #e9e9e9; /* Fondo ligeramente diferente para el área del jugador */
+    border-radius: 8px;
+    /* min-width: 220px; Se ajusta con flex-basis o width abajo */
+    flex-basis: calc(50% - 20px); /* Para dos columnas, considerando márgenes */
+    box-sizing: border-box;
 }
 
 .contenedor-tiempo {
-    padding: 10px 15px; /* Aumento de padding */
-    border: 1px solid #d1d1d1; /* Borde más sutil */
-    border-radius: 6px; /* Bordes redondeados consistentes */
-    background-color: #ffffff; /* Fondo blanco para cada temporizador */
-    margin: 8px; /* Margen para separación */
-    min-width: 220px; /* Ancho mínimo ajustado */
+    /* Estilos existentes para .contenedor-tiempo se mantienen */
+    margin-bottom: 10px; /* Espacio entre el tiempo y las piezas capturadas */
+    width: 100%; /* Ocupar el ancho del .area-jugador */
+    box-sizing: border-box; /* Para que padding/border no aumenten el ancho total */
+    padding: 10px 15px;
+    border: 1px solid #d1d1d1;
+    border-radius: 6px;
+    background-color: #ffffff;
+    /* margin: 8px; Se maneja por .area-jugador y el margin-bottom de este */
     text-align: center;
-    transition: all 0.3s ease; /* Transición suave para efectos */
+    transition: all 0.3s ease;
+    /* transition: all 0.3s ease; Ya está arriba */
 }
 
 .contenedor-tiempo .nombre-jugador {
-    font-weight: normal; /* Por defecto normal */
+    font-weight: normal;
     color: #555;
-    font-size: 0.95em; /* Tamaño de fuente ajustado */
-    display: block; /* Asegura que ocupe su propia línea o parte */
-    margin-bottom: 5px; /* Espacio entre nombre y tiempo */
+    font-size: 0.95em;
+    display: block;
+    margin-bottom: 5px;
 }
 
 /* Estilo para el tiempo en sí */
 #tiempo_blancas, #tiempo_negras {
     font-family: 'Courier New', Courier, monospace;
-    font-size: 1.4em; /* Tamaño de fuente mayor para el tiempo */
+    font-size: 1.4em;
     color: #333;
-    display: inline-block; /* Para que el borde activo se ajuste bien */
+    display: inline-block;
 }
 
 /* Estilos para el temporizador activo */
 .reloj-activo {
-    border-color: #337ab7; /* Un borde azul para el activo */
-    box-shadow: 0 0 10px rgba(51, 122, 183, 0.6); /* Sombra más pronunciada */
-    transform: translateY(-2px); /* Efecto ligero de elevación */
+    border-color: #337ab7;
+    box-shadow: 0 0 10px rgba(51, 122, 183, 0.6);
+    transform: translateY(-2px);
 }
 
 .reloj-activo .nombre-jugador {
@@ -173,10 +198,45 @@ body {
 }
 
 .reloj-activo #tiempo_blancas,
-.reloj-activo #tiempo_negras { /* Aplicar al span del tiempo dentro del contenedor activo */
+.reloj-activo #tiempo_negras {
     font-weight: bold;
     color: #337ab7;
 }
+
+/* Estilos para Piezas Capturadas */
+.contenedor-piezas-capturadas {
+    width: 100%;
+    padding: 8px; /* Padding ajustado */
+    border: 1px solid #dcdcdc;
+    border-radius: 4px;
+    background-color: #fdfdfd;
+    min-height: 40px; /* Altura mínima aumentada para mejor visualización */
+    box-sizing: border-box;
+    margin-top: 5px; /* Espacio adicional si es necesario */
+}
+
+.titulo-capturadas {
+    display: block;
+    font-size: 0.85em; /* Tamaño ajustado */
+    color: #555; /* Color más oscuro para mejor contraste */
+    margin-bottom: 6px; /* Margen ajustado */
+    text-align: left;
+}
+
+.simbolos-piezas-capturadas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    min-height: 24px; /* Altura mínima ajustada */
+}
+
+.simbolos-piezas-capturadas span {
+    font-size: 1.2em; /* Tamaño de símbolos aumentado */
+    margin-right: 4px; /* Espacio entre símbolos ajustado */
+    color: #333;
+    line-height: 1; /* Para evitar espaciado vertical excesivo */
+}
+
 
 /* Estilos para el Historial de Movimientos */
 #seccion_movimientos {

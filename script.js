@@ -20,7 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let juegoIniciado = false;
     let historialMovimientos = [];
     let numeroDeMovimientoActual = 1;
-    let casillasElementosResaltadosComoPosibles = []; // NUEVO: para guardar elementos DOM resaltados
+    let casillasElementosResaltadosComoPosibles = [];
+    let ultimaCasillaOrigenEl = null;
+    let ultimaCasillaDestinoEl = null;
 
     const btnTiempo1Min = document.getElementById('btn_tiempo_1_min');
     const btnTiempo5Min = document.getElementById('btn_tiempo_5_min');
@@ -31,6 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const contenedorTiempoNegras = document.getElementById('temporizador_negras_contenedor');
     const listaMovimientosOLElement = document.getElementById('lista_movimientos_ol');
     const btnDescargarMovimientos = document.getElementById('btn_descargar_movimientos');
+    // NUEVO: Referencias a contenedores de piezas capturadas
+    const simbolosBlancasCapturoEl = document.getElementById('simbolos_blancas_capturo');
+    const simbolosNegrasCapturoEl = document.getElementById('simbolos_negras_capturo');
 
     function posicionACoordenadas(posicion) { if (typeof posicion !== 'string' || posicion.length !== 2) { return null; } const col = posicion.charCodeAt(0)-'a'.charCodeAt(0); const fil = 8-parseInt(posicion[1]); if(col<0||col>7||fil<0||fil>7||isNaN(fil)){return null;} return {fila:fil,columna:col}; }
     function coordenadasAPosicion(coords) { if(typeof coords!=='object'||coords===null||!('fila'in coords)||!('columna'in coords)){return null;} return `${String.fromCharCode('a'.charCodeAt(0)+coords.columna)}${8-coords.fila}`; }
@@ -42,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
         colocarPiezasIniciales();
         actualizarIndicadorTurno();
         actualizarDisplayHistorialMovimientos();
+        limpiarResaltadoUltimoMovimiento();
     }
 
     function colocarPiezasIniciales() {
@@ -71,12 +77,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btnDescargarMovimientos) { btnDescargarMovimientos.disabled = historialMovimientos.length === 0; }
     }
 
-    // --- NUEVA función para limpiar resaltados ---
     function limpiarResaltadoMovimientosPosibles() {
         casillasElementosResaltadosComoPosibles.forEach(casillaEl => {
             casillaEl.classList.remove('movimiento-posible');
         });
-        casillasElementosResaltadosComoPosibles = []; // Vaciar el array
+        casillasElementosResaltadosComoPosibles = [];
+    }
+
+    function limpiarResaltadoUltimoMovimiento() {
+        if (ultimaCasillaOrigenEl) {
+            ultimaCasillaOrigenEl.classList.remove('ultimo-mov-origen');
+            ultimaCasillaOrigenEl = null;
+        }
+        if (ultimaCasillaDestinoEl) {
+            ultimaCasillaDestinoEl.classList.remove('ultimo-mov-destino');
+            ultimaCasillaDestinoEl = null;
+        }
     }
 
     function manejarClickCasilla(casillaClickeada) {
@@ -84,13 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const piezaIdEnCasillaClick = casillaClickeada.dataset.piezaId;
         const piezaObjEnCasillaClick = piezaIdEnCasillaClick ? piezas.find(p => p.id === piezaIdEnCasillaClick && p.posicionActual === casillaClickeada.dataset.posicion) : null;
 
-        if (!piezaSeleccionada) { // Intentando seleccionar una pieza
-            limpiarResaltadoMovimientosPosibles(); // Limpiar cualquier resaltado anterior
+        if (!piezaSeleccionada) {
+            limpiarResaltadoMovimientosPosibles();
             if (piezaObjEnCasillaClick && piezaObjEnCasillaClick.color === turnoActual) {
                 piezaSeleccionada = {casillaElemento:casillaClickeada, piezaObjeto:piezaObjEnCasillaClick, posicionOriginalStr:casillaClickeada.dataset.posicion};
                 casillaClickeada.classList.add('seleccionada');
-
-                // Resaltar movimientos posibles para la pieza recién seleccionada
                 const movimientos = getMovimientosLegalesParaPieza(piezaSeleccionada.piezaObjeto, piezaSeleccionada.posicionOriginalStr);
                 movimientos.forEach(destinoStr => {
                     const casillaDestinoEl = document.querySelector(`[data-posicion="${destinoStr}"]`);
@@ -100,24 +114,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             }
-            // Si se hace clic en casilla vacía o enemiga sin tener pieza seleccionada, no se hace nada más (ya se limpió resaltado).
-        } else { // Ya hay una pieza seleccionada (piezaSeleccionada !== null)
+        } else {
             const cOrigenEl = piezaSeleccionada.casillaElemento;
             const pMovidaObj = piezaSeleccionada.piezaObjeto;
             const cOrigenStr = piezaSeleccionada.posicionOriginalStr;
             const cDestinoStr = casillaClickeada.dataset.posicion;
 
-            if (cOrigenEl === casillaClickeada) { // Clic en la misma pieza: deseleccionar
+            if (cOrigenEl === casillaClickeada) {
                 limpiarResaltadoMovimientosPosibles();
                 cOrigenEl.classList.remove('seleccionada');
                 piezaSeleccionada = null;
                 return;
             }
 
-            if (piezaObjEnCasillaClick && piezaObjEnCasillaClick.color === pMovidaObj.color) { // Clic en otra pieza propia: cambiar selección
+            if (piezaObjEnCasillaClick && piezaObjEnCasillaClick.color === pMovidaObj.color) {
                 limpiarResaltadoMovimientosPosibles();
                 cOrigenEl.classList.remove('seleccionada');
-                // if (piezaObjEnCasillaClick.color === turnoActual) { // Esta condición ya está implícita arriba
                 casillaClickeada.classList.add('seleccionada');
                 piezaSeleccionada = {casillaElemento:casillaClickeada, piezaObjeto:piezaObjEnCasillaClick, posicionOriginalStr:cDestinoStr};
                 const movimientosNuevos = getMovimientosLegalesParaPieza(piezaSeleccionada.piezaObjeto, piezaSeleccionada.posicionOriginalStr);
@@ -128,37 +140,51 @@ document.addEventListener('DOMContentLoaded', () => {
                         casillasElementosResaltadosComoPosibles.push(casillaDestinoEl);
                     }
                 });
-                // } else { piezaSeleccionada = null; } // No debería llegar aquí si la lógica de turno es correcta
                 return;
             }
 
-            // Intentando mover la pieza seleccionada a casillaDestinoStr
             let movValidoBase = false;
             if(pMovidaObj.tipo==='peon')movValidoBase=esMovimientoValidoPeon(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='torre')movValidoBase=esMovimientoValidoTorre(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='caballo')movValidoBase=esMovimientoValidoCaballo(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='alfil')movValidoBase=esMovimientoValidoAlfil(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='reina')movValidoBase=esMovimientoValidoReina(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='rey')movValidoBase=esMovimientoValidoRey(pMovidaObj,cOrigenStr,cDestinoStr);
 
             let movFinalValido = movValidoBase;
-            const pEnDestinoOriginal = getPiezaEnCasilla(cDestinoStr);
+            const pEnDestinoOriginal = getPiezaEnCasilla(cDestinoStr); // Pieza que está en la casilla destino ANTES del movimiento
 
-            if (movValidoBase) { // Si el movimiento es válido según las reglas de la pieza
+            if (movValidoBase) {
                 const colorJugadorActual = pMovidaObj.color;
-                // const posOriginalSim = cOrigenStr; // Ya tenemos cOrigenStr
-                pMovidaObj.posicionActual = cDestinoStr; // Simular movimiento
+                pMovidaObj.posicionActual = cDestinoStr;
                 let idPiezaCapturadaSim = null;
                 if(pEnDestinoOriginal){ const pCapSimArrayObj=piezas.find(p=>p.id===pEnDestinoOriginal.id); if(pCapSimArrayObj){idPiezaCapturadaSim=pCapSimArrayObj.id;pCapSimArrayObj.posicionActual=null;} }
-
-                if(estaEnJaque(colorJugadorActual)){ // Verificar si el rey del jugador que mueve está en jaque
-                    movFinalValido=false;
-                }
-                // Revertir simulación
-                pMovidaObj.posicionActual = cOrigenStr; // Revertir posición de la pieza movida
-                if(idPiezaCapturadaSim){ const pRestSimArrayObj=piezas.find(p=>p.id===idPiezaCapturadaSim); if(pRestSimArrayObj){pRestSimArrayObj.posicionActual=cDestinoStr;} } // Restaurar pieza capturada
+                if(estaEnJaque(colorJugadorActual)){movFinalValido=false;}
+                pMovidaObj.posicionActual = cOrigenStr;
+                if(idPiezaCapturadaSim){ const pRestSimArrayObj=piezas.find(p=>p.id===idPiezaCapturadaSim); if(pRestSimArrayObj){pRestSimArrayObj.posicionActual=cDestinoStr;} }
             }
 
             if (movFinalValido) {
-                limpiarResaltadoMovimientosPosibles(); // Limpiar resaltados rosados después de un movimiento exitoso
+                limpiarResaltadoMovimientosPosibles();
                 document.querySelectorAll('.en-jaque').forEach(c => c.classList.remove('en-jaque'));
+                limpiarResaltadoUltimoMovimiento();
 
-                if(pEnDestinoOriginal){ const pCapRealArrayObj=piezas.find(p=>p.id===pEnDestinoOriginal.id); if(pCapRealArrayObj)pCapRealArrayObj.posicionActual=null; }
+                ultimaCasillaOrigenEl = cOrigenEl;
+                ultimaCasillaDestinoEl = casillaClickeada;
+                if (ultimaCasillaOrigenEl) ultimaCasillaOrigenEl.classList.add('ultimo-mov-origen');
+                if (ultimaCasillaDestinoEl) ultimaCasillaDestinoEl.classList.add('ultimo-mov-destino');
+
+                // --- Lógica para mostrar piezas capturadas ---
+                if (pEnDestinoOriginal) { // Si hay una pieza en el destino y el movimiento es válido (ya implica que es enemiga)
+                    const simboloCapturado = pEnDestinoOriginal.simbolo;
+                    const piezaCapturadaSpan = document.createElement('span');
+                    piezaCapturadaSpan.textContent = simboloCapturado;
+
+                    if (pMovidaObj.color === 'blanco') { // Blancas capturaron una pieza negra
+                        if (simbolosBlancasCapturoEl) simbolosBlancasCapturoEl.appendChild(piezaCapturadaSpan);
+                    } else { // Negras capturaron una pieza blanca
+                        if (simbolosNegrasCapturoEl) simbolosNegrasCapturoEl.appendChild(piezaCapturadaSpan);
+                    }
+                    // Marcar la pieza como capturada en el array 'piezas'
+                    const pCapRealArrayObj=piezas.find(p=>p.id===pEnDestinoOriginal.id);
+                    if(pCapRealArrayObj) pCapRealArrayObj.posicionActual=null;
+                }
+                // --- Fin de la lógica para mostrar piezas capturadas ---
 
                 const esCap = !!pEnDestinoOriginal;
                 let notacionMov = formatearNotacionMovimiento(pMovidaObj, cOrigenStr, cDestinoStr, esCap);
@@ -169,16 +195,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const jugadorQueMovio = turnoActual;
                 turnoActual=(turnoActual==='blanco')?'negro':'blanco';
-                // actualizarIndicadorTurno se llama abajo, que a su vez llama a actualizarVisualizacionTiemposIndividuales
 
                 let finJuego = false, msgFinJuego = "";
-                // Determinar si el movimiento actual resultó en jaque o jaque mate para el OPONENTE
-                if(estaEnJaque(turnoActual)){ // turnoActual ya es el oponente
+                if(estaEnJaque(turnoActual)){
                     if(esJaqueMate(turnoActual)){
                         finJuego=true; msgFinJuego=`¡JAQUE MATE! Gana ${jugadorQueMovio}.`;
                         notacionMov += "#";
                     } else {
-                        // No alertar aquí, solo añadir a notación. Alert se hará por el estado del rey del turno actual.
                         notacionMov += "+";
                     }
                 } else if(esEmpate(turnoActual)){
@@ -188,33 +211,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(jugadorQueMovio==='blanco'){ historialMovimientos.push({numero:numeroDeMovimientoActual, blancas:notacionMov, negras:""}); }
                 else{ if(historialMovimientos.length>0){historialMovimientos[historialMovimientos.length-1].negras=notacionMov;} numeroDeMovimientoActual++; }
                 actualizarDisplayHistorialMovimientos();
-                actualizarIndicadorTurno(); // Actualiza display de turno y resalta reloj correcto
+                actualizarIndicadorTurno();
 
                 if(finJuego){ alert(msgFinJuego); deshabilitarMovimientoPiezas(); clearInterval(intervaloTemporizador); }
                 else {
-                    // Si solo es jaque (no mate), resaltar la casilla del rey oponente
-                    if (notacionMov.endsWith("+") && !notacionMov.endsWith("#")) {
-                         alert(`¡Jaque al rey ${turnoActual}!`); // Notificar jaque al oponente
+                    if (notacionMov.endsWith("+")) {
+                         alert(`¡Jaque al rey ${turnoActual}!`);
                          const posReyJaque=encontrarPosicionRey(turnoActual);
                          if(posReyJaque){ const cRey=document.querySelector(`[data-posicion="${posReyJaque}"]`); if(cRey)cRey.classList.add('en-jaque');}
                     }
                     iniciarOReanudarTemporizadorJugador();
                 }
             }
-            // Si el movimiento no fue finalValido, la pieza permanece seleccionada y los resaltados de movimiento posible también.
-            // Limpiar la clase 'seleccionada' de la casilla de origen y resetear piezaSeleccionada solo si el movimiento fue exitoso.
-            if (movFinalValido) {
-                 cOrigenEl.classList.remove('seleccionada');
-                 piezaSeleccionada = null;
-            }
+            cOrigenEl.classList.remove('seleccionada');
+            piezaSeleccionada = null;
         }
     }
 
     function encontrarPosicionRey(colorRey){const r=piezas.find(p=>p.tipo==='rey'&&p.color===colorRey&&p.posicionActual); return r?r.posicionActual:null;}
-    function getCasillasAtacadasPor(colorAtacante){const cA=new Set(); const pA=piezas.filter(p=>p.color===colorAtacante&&p.posicionActual); for(const pza of pA){const oS=pza.posicionActual; for(let i=0;i<8;i++){for(let j=0;j<8;j++){const dS=coordenadasAPosicion({fila:i,columna:j}); if(oS===dS)continue; let puedeAt=false; if(pza.tipo==='peon'){const o=posicionACoordenadas(oS),d=posicionACoordenadas(dS); if(!o||!d)continue; const dC=Math.abs(d.columna-o.columna),dF=d.fila-o.fila; if(pza.color==='blanco'){if(dF===-1&&dC===1)puedeAt=true;}else{if(dF===1&&dC===1)puedeAt=true;}} else if(pza.tipo==='rey'){if(esMovimientoValidoRey(pza,oS,dS))puedeAt=true;} else if(pza.tipo==='caballo'){if(esMovimientoValidoCaballo(pza,oS,dS))puedeAt=true;} else if(pza.tipo==='torre'){if(esMovimientoValidoTorre(pza,oS,dS))puedeAt=true;} else if(pza.tipo==='alfil'){if(esMovimientoValidoAlfil(pza,oS,dS))puedeAt=true;} else if(pza.tipo==='reina'){if(esMovimientoValidoReina(pza,oS,dS))puedeAt=true;} if(puedeAt)cA.add(dS);}}} return Array.from(cA);}
+    function getCasillasAtacadasPor(colorAtacante) { /* ... (sin cambios) ... */
+        const casillasAtacadas = new Set();
+        const piezasDelAtacante = piezas.filter(p => p.color === colorAtacante && p.posicionActual);
+        for (const pieza of piezasDelAtacante) {
+            const origenStr = pieza.posicionActual;
+            const origenCoords = posicionACoordenadas(origenStr);
+            if (!origenCoords) continue;
+            if (pieza.tipo === 'peon') {
+                const dir = (pieza.color === 'blanco') ? -1 : 1;
+                if (origenCoords.columna > 0) { const c = coordenadasAPosicion({ fila: origenCoords.fila + dir, columna: origenCoords.columna - 1 }); if (c) casillasAtacadas.add(c); }
+                if (origenCoords.columna < 7) { const c = coordenadasAPosicion({ fila: origenCoords.fila + dir, columna: origenCoords.columna + 1 }); if (c) casillasAtacadas.add(c); }
+            } else if (pieza.tipo === 'caballo') {
+                const movimientosCaballo = [ { df: -2, dc: -1 }, { df: -2, dc: 1 }, { df: -1, dc: -2 }, { df: -1, dc: 2 }, { df: 1, dc: -2 }, { df: 1, dc: 2 }, { df: 2, dc: -1 }, { df: 2, dc: 1 } ];
+                movimientosCaballo.forEach(mov => { const dF = origenCoords.fila+mov.df; const dC = origenCoords.columna+mov.dc; if(dF>=0&&dF<8&&dC>=0&&dC<8){casillasAtacadas.add(coordenadasAPosicion({fila:dF,columna:dC}));}});
+            } else if (pieza.tipo === 'rey') {
+                const movimientosRey = [ { df: -1, dc: -1 }, { df: -1, dc: 0 }, { df: -1, dc: 1 }, { df: 0, dc: -1 }, { df: 0, dc: 1 }, { df: 1, dc: -1 }, { df: 1, dc: 0 }, { df: 1, dc: 1 } ];
+                movimientosRey.forEach(mov => { const dF = origenCoords.fila+mov.df; const dC = origenCoords.columna+mov.dc; if(dF>=0&&dF<8&&dC>=0&&dC<8){casillasAtacadas.add(coordenadasAPosicion({fila:dF,columna:dC}));}});
+            } else {
+                let dirs = [];
+                if(pieza.tipo==='torre')dirs=[{df:0,dc:1},{df:0,dc:-1},{df:1,dc:0},{df:-1,dc:0}]; else if(pieza.tipo==='alfil')dirs=[{df:1,dc:1},{df:1,dc:-1},{df:-1,dc:1},{df:-1,dc:-1}]; else if(pieza.tipo==='reina')dirs=[{df:0,dc:1},{df:0,dc:-1},{df:1,dc:0},{df:-1,dc:0},{df:1,dc:1},{df:1,dc:-1},{df:-1,dc:1},{df:-1,dc:-1}];
+                dirs.forEach(dir=>{for(let i=1;i<8;i++){const dF=origenCoords.fila+dir.df*i; const dC=origenCoords.columna+dir.dc*i; if(dF>=0&&dF<8&&dC>=0&&dC<8){const cAStr=coordenadasAPosicion({fila:dF,columna:dC}); casillasAtacadas.add(cAStr); if(getPiezaEnCasilla(cAStr))break;}else break;}});
+            }
+        }
+        return Array.from(casillasAtacadas).filter(pos => pos !== null);
+    }
     function estaEnJaque(colorRey){const pR=encontrarPosicionRey(colorRey); if(!pR)return false; const cA=(colorRey==='blanco'?'negro':'blanco'); return getCasillasAtacadasPor(cA).includes(pR);}
-
-    function getMovimientosLegalesParaPieza(piezaConsiderada, casillaOrigenActualStr) {
+    function getMovimientosLegalesParaPieza(piezaConsiderada, casillaOrigenActualStr) { /* ... (sin cambios) ... */
         const movimientosLegalesParaEstaPieza = [];
         for (let i = 0; i < 8; i++) {
             for (let j = 0; j < 8; j++) {
@@ -245,8 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return movimientosLegalesParaEstaPieza;
     }
-
-    function getTodosMovimientosLegalesPosibles(colorJugador) {
+    function getTodosMovimientosLegalesPosibles(colorJugador) { /* ... (sin cambios) ... */
         const movimientosLegales = [];
         const piezasDelJugador = piezas.filter(p => p.color === colorJugador && p.posicionActual);
         for (const pieza of piezasDelJugador) {
@@ -257,7 +297,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return movimientosLegales;
     }
-
     function esJaqueMate(colorReyEnJaque) { if (!estaEnJaque(colorReyEnJaque)) return false; return getTodosMovimientosLegalesPosibles(colorReyEnJaque).length === 0; }
     function esEmpate(colorJugadorTurno) { if (estaEnJaque(colorJugadorTurno)) return false; return getTodosMovimientosLegalesPosibles(colorJugadorTurno).length === 0; }
     function esMovimientoValidoRey(p,oS,dS) { const o=posicionACoordenadas(oS),d=posicionACoordenadas(dS); if(!o||!d||(o.f===d.f&&o.c===d.c))return false;return Math.abs(d.f-o.f)<=1&&Math.abs(d.c-o.c)<=1;}
