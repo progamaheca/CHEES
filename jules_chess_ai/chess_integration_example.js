@@ -26,13 +26,20 @@ async function getMoveFromAI(chessInstance, flaskServerUrl = 'http://localhost:5
 
     console.log("Enviando FEN a la IA:", fen);
 
+    const bodyPayload = {
+        fen: fen,
+        // Assumes 'selectedAiModelFile' is a global variable accessible in this scope.
+        // If not, it should be passed as an argument to getMoveFromAI.
+        model_file: typeof selectedAiModelFile !== 'undefined' ? selectedAiModelFile : "jules_chess_model.pth" // Fallback to default
+    };
+
     try {
         const response = await fetch(flaskServerUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ fen: fen }),
+            body: JSON.stringify(bodyPayload), // Use the new payload
         });
 
         if (!response.ok) {

@@ -20,7 +20,7 @@ app = Flask(__name__)
 CORS(app) # Habilitar CORS para todas las rutas, útil para desarrollo local
 
 # --- Configuración del Modelo ---
-MODEL_FILENAME = "jules_chess_model.pth"
+DEFAULT_MODEL_FILENAME = "jules_chess_model.pth" # Renombrado para claridad
 # Determinar NUM_POSSIBLE_MOVES de una instancia de la red.
 # Esto debe coincidir con cómo se entrenó el modelo.
 try:
@@ -40,17 +40,24 @@ model = ChessNet(num_possible_moves=NUM_POSSIBLE_MOVES).to(device)
 
 # Construir la ruta al modelo relativa a la ubicación de este script
 script_dir = os.path.dirname(__file__) # Directorio del script actual (jules_chess_ai)
-model_path = os.path.join(script_dir, MODEL_FILENAME)
+default_model_path = os.path.join(script_dir, DEFAULT_MODEL_FILENAME)
 
+# Variable global para rastrear el modelo actualmente cargado en 'model'
+# Podríamos inicializarlo con None y cargar el default solo si es necesario,
+# o cargarlo aquí y potencialmente reemplazarlo en /predict.
+# Por simplicidad, cargamos el default aquí si existe.
+CURRENTLY_LOADED_MODEL_PATH = None
 
 try:
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval() # Poner el modelo en modo de evaluación
-    print(f"Modelo '{MODEL_FILENAME}' cargado exitosamente en {device}.")
-except FileNotFoundError:
-    print(f"ADVERTENCIA: No se encontró el archivo del modelo '{model_path}'. El servidor usará una red no entrenada.")
+    if os.path.exists(default_model_path):
+        model.load_state_dict(torch.load(default_model_path, map_location=device))
+        model.eval()
+        CURRENTLY_LOADED_MODEL_PATH = default_model_path
+        print(f"Modelo por defecto '{DEFAULT_MODEL_FILENAME}' cargado exitosamente en {device}.")
+    else:
+        print(f"ADVERTENCIA: No se encontró el archivo del modelo por defecto '{default_model_path}'. El servidor usará una red no entrenada inicialmente.")
 except Exception as e:
-    print(f"ADVERTENCIA: Error al cargar el modelo '{model_path}': {e}. El servidor usará una red no entrenada.")
+    print(f"ADVERTENCIA: Error al cargar el modelo por defecto '{default_model_path}': {e}. El servidor usará una red no entrenada inicialmente.")
 
 
 def select_best_legal_move(board_fen, network_policy_logits, legal_chess_moves):
@@ -105,6 +112,43 @@ def predict_move():
         return jsonify({"error": "Falta 'fen' en la solicitud"}), 400
 
     fen = data['fen']
+    model_file_requested = data.get('model_file', DEFAULT_MODEL_FILENAME) # Usar default si no se especifica
+
+    global model # Para modificar la instancia global del modelo
+    global CURRENTLY_LOADED_MODEL_PATH # Para rastrear qué modelo está cargado
+
+    requested_model_path = os.path.join(script_dir, model_file_requested)
+
+    # Cargar el modelo solicitado si no es el que ya está cargado
+    if requested_model_path != CURRENTLY_LOADED_MODEL_PATH or not CURRENTLY_LOADED_MODEL_PATH:
+        try:
+            if os.path.exists(requested_model_path):
+                model.load_state_dict(torch.load(requested_model_path, map_location=device))
+                model.eval()
+                CURRENTLY_LOADED_MODEL_PATH = requested_model_path
+                print(f"Modelo '{model_file_requested}' cargado para esta petición.")
+            else:
+                # Si el modelo solicitado no existe, intentar cargar/re-cargar el modelo por defecto
+                print(f"Advertencia: Modelo solicitado '{model_file_requested}' no encontrado.")
+                if os.path.exists(default_model_path):
+                    if CURRENTLY_LOADED_MODEL_PATH != default_model_path:
+                        print(f"Volviendo al modelo por defecto '{DEFAULT_MODEL_FILENAME}'.")
+                        model.load_state_dict(torch.load(default_model_path, map_location=device))
+                        model.eval()
+                        CURRENTLY_LOADED_MODEL_PATH = default_model_path
+                    else:
+                        print(f"Modelo por defecto '{DEFAULT_MODEL_FILENAME}' ya está cargado.")
+                else:
+                    # Si ni el solicitado ni el por defecto existen
+                    print(f"ADVERTENCIA: Modelo por defecto '{DEFAULT_MODEL_FILENAME}' tampoco encontrado. Usando red con pesos actuales (posiblemente aleatorios).")
+                    # CURRENTLY_LOADED_MODEL_PATH = None # Indicar que no hay un modelo "válido" cargado
+                    # En este caso, el modelo 'model' global retiene los últimos pesos que tuvo (o aleatorios si ninguno cargó)
+        except Exception as e:
+            # Si hay un error cargando el modelo solicitado, podría ser un archivo corrupto.
+            # Se podría intentar volver al default, o simplemente usar el modelo tal como está en memoria.
+            print(f"Error al cargar el modelo solicitado '{model_file_requested}': {e}. Usando el modelo actual en memoria.")
+            # Aquí podrías decidir si quieres devolver un error al cliente o seguir con el modelo en memoria.
+            # return jsonify({"error": f"Error crítico al intentar cargar el modelo {model_file_requested}"}), 500
 
     try:
         board = chess.Board(fen)
@@ -140,8 +184,9 @@ if __name__ == '__main__':
     # Nota: Ejecutar con `flask run` es a menudo preferido para desarrollo,
     # o usar un servidor WSGI como Gunicorn para producción.
     # app.run() es conveniente para pruebas rápidas.
-    print("Iniciando servidor Flask. Asegúrate de que el modelo entrenado")
-    print(f"'{MODEL_FILENAME}' exista en el directorio '{script_dir}' o la IA usará pesos aleatorios.")
+    print("Iniciando servidor Flask. Asegúrate de que el modelo por defecto entrenado")
+    print(f"'{DEFAULT_MODEL_FILENAME}' exista en el directorio '{script_dir}' o la IA usará pesos aleatorios si ese modelo no se encuentra.")
+    print("El servidor intentará cargar modelos dinámicamente si se especifica 'model_file' en la petición JSON.")
     print("Endpoint disponible en POST http://localhost:5000/predict")
     print("Envía JSON como: {'fen': 'fen_string_del_tablero'}")
     app.run(host='0.0.0.0', port=5000, debug=False) # debug=False es mejor si cargas modelo una vez

@@ -27,6 +27,7 @@ let turnoActual = 'blanco';
 let piezaSeleccionada = null;
 let juegoIniciado = false;
 let modoJuego = 'hvsia'; // Opciones: 'hvsh' (Humano vs Humano), 'hvsia' (Humano vs IA)
+let selectedAiModelFile = "jules_chess_model.pth"; // Default model
 let historialMovimientos = [];
 let numeroDeMovimientoActual = 1;
 
@@ -37,6 +38,7 @@ let intervaloTemporizador = null;
 
 // Referencias a los botones de modo de juego (se asignarán en configurarSeleccionModoJuego)
 let btnModoHvsh, btnModoHvsia;
+let selectorModeloIaEl;
 
 // --- Funciones de Lógica de Juego / Control de Flujo ---
 // Modificado: Solo actualiza turnoActual y UI.
@@ -102,13 +104,19 @@ function confirmarSeleccionTiempo(s){
             btnModoHvsia.style.borderColor = '#4cae4c';
         }
     }
+    // Re-enable AI model selector and set its value
+    if (selectorModeloIaEl) {
+        selectorModeloIaEl.disabled = false;
+        selectorModeloIaEl.value = selectedAiModelFile;
+    }
 
 
     juegoIniciado = true;
 
-    // Disable mode selection buttons after game starts
+    // Disable mode selection buttons and AI model selector after game starts
     if (btnModoHvsh) btnModoHvsh.disabled = true;
     if (btnModoHvsia) btnModoHvsia.disabled = true;
+    if (selectorModeloIaEl) selectorModeloIaEl.disabled = true;
 
     ui.limpiarTableroDeClasesJuegoUI();
     historialMovimientos = [];
@@ -467,6 +475,27 @@ function configurarSeleccionModoJuego() {
     }
 }
 
+// --- Configuración de Selección de Modelo de IA ---
+function configurarSeleccionModeloIA() {
+    selectorModeloIaEl = document.getElementById('selector_modelo_ia');
+    if (selectorModeloIaEl) {
+        // Set initial value from the global variable
+        selectorModeloIaEl.value = selectedAiModelFile;
+
+        selectorModeloIaEl.addEventListener('change', (event) => {
+            if (juegoIniciado) { // Prevent changing mid-game
+                event.target.value = selectedAiModelFile; // Revert to current selection
+                ui.mostrarMensajeTemporalUI("No se puede cambiar el modelo de IA durante una partida.", 2500, "info");
+                return;
+            }
+            selectedAiModelFile = event.target.value;
+            console.log('Modelo de IA seleccionado:', selectedAiModelFile);
+        });
+    } else {
+        console.warn("Elemento 'selector_modelo_ia' no encontrado en el DOM.");
+    }
+}
+
 
 // --- Inicialización del Juego ---
 function inicializarJuego() {
@@ -474,6 +503,7 @@ function inicializarJuego() {
     if (contenedorTablero) {
         generarTableroVisual(manejarClickCasilla); // Pasa la función de manejo de clicks al generador del tablero
         configurarSeleccionModoJuego(); // Configurar listeners para los botones de modo
+        configurarSeleccionModeloIA(); // Configurar listener para el selector de modelo IA
         // inicializarPiezasEnTableroDOM(); // Se llama dentro de confirmarSeleccionTiempo.
 
         ui.actualizarIndicadorTurnoUI(turnoActual); // Mostrar turno inicial (blanco por defecto)

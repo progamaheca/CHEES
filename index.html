@@ -14,6 +14,15 @@
         <button id="btn_modo_hvsh" style="padding: 10px 15px; margin: 0 10px; font-size: 1em; cursor: pointer; background-color: #5bc0de; color: white; border: none; border-radius: 4px;">Humano vs Humano</button>
         <button id="btn_modo_hvsia" style="padding: 10px 15px; margin: 0 10px; font-size: 1em; cursor: pointer; background-color: #5cb85c; color: white; border: none; border-radius: 4px;">Humano vs IA</button>
     </div>
+    <!-- Sección para seleccionar el modelo de IA -->
+    <div id="configuracion_modelo_ia" style="text-align: center; margin-bottom: 20px; padding: 15px; border: 2px solid #ccc; background-color: #fafafa; border-radius: 5px;">
+        <h2>Selecciona el Modelo de IA (si aplica):</h2>
+        <select id="selector_modelo_ia" style="padding: 8px; font-size: 1em; border-radius: 4px;">
+            <option value="jules_chess_model.pth">IA Principal (Entrenada)</option>
+            <option value="modelo_alternativo_ejemplo.pth">IA Alternativa (Ejemplo)</option>
+            <!-- Añade más <option> aquí para otros modelos -->
+        </select>
+    </div>
     <!-- Sección para seleccionar el tiempo de juego -->
     <div id="configuracion_tiempo">
         <h2>Selecciona el tiempo de juego:</h2>
