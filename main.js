@@ -352,7 +352,7 @@ function manejarClickCasilla(casillaClickeadaEl) {
         // Usar getMovimientosLegalesParaPieza para validar el movimiento.
         // Esta función ya considera si el movimiento pondría al propio rey en jaque.
         const movimientosLegalesDisponibles = getMovimientosLegalesParaPieza(pMovidaObj, cOrigenStr);
-        const esMovimientoLegalDirecto = movimientosLegalesDisponibles.some(m => m.casillaDestino === cDestinoStr);
+        const esMovimientoLegalDirecto = movimientosLegalesDisponibles.includes(cDestinoStr);
 
         let movFinalValido = esMovimientoLegalDirecto;
 
