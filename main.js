@@ -26,6 +26,7 @@ import { elegirMovimientoIA } from './ia.js'; // Nueva importación para la IA
 let turnoActual = 'blanco';
 let piezaSeleccionada = null;
 let juegoIniciado = false;
+let modoJuego = 'hvsia'; // Opciones: 'hvsh' (Humano vs Humano), 'hvsia' (Humano vs IA)
 let historialMovimientos = [];
 let numeroDeMovimientoActual = 1;
 
@@ -33,6 +34,9 @@ let tiempoSeleccionado = 60;
 let tiempoRestanteBlancas = tiempoSeleccionado;
 let tiempoRestanteNegras = tiempoSeleccionado;
 let intervaloTemporizador = null;
+
+// Referencias a los botones de modo de juego (se asignarán en configurarSeleccionModoJuego)
+let btnModoHvsh, btnModoHvsia;
 
 // --- Funciones de Lógica de Juego / Control de Flujo ---
 // Modificado: Solo actualiza turnoActual y UI.
@@ -72,10 +76,39 @@ function confirmarSeleccionTiempo(s){
     tiempoSeleccionado=s;tiempoRestanteBlancas=s;tiempoRestanteNegras=s;
 
     ui.ocultarSeleccionTiempoUI();
-    ui.deshabilitarCheckboxReglaJaqueUI(false);
+    ui.deshabilitarCheckboxReglaJaqueUI(false); // Re-enable checkbox for rules
     ui.actualizarVisualizacionTiemposIndividualesUI(tiempoRestanteBlancas, tiempoRestanteNegras, tiempoSeleccionado);
 
+    // Re-enable mode selection buttons for a new game configuration
+    if (btnModoHvsh) btnModoHvsh.disabled = false;
+    if (btnModoHvsia) btnModoHvsia.disabled = false;
+    // Reflect current modoJuego on buttons (in case it was changed programmatically or for clarity)
+    if (modoJuego === 'hvsia') {
+        if (btnModoHvsia) {
+            btnModoHvsia.style.backgroundColor = '#449d44'; // Selected
+            btnModoHvsia.style.borderColor = '#398439';
+        }
+        if (btnModoHvsh) {
+            btnModoHvsh.style.backgroundColor = '#5bc0de'; // Default
+            btnModoHvsh.style.borderColor = '#46b8da';
+        }
+    } else { // hvsh
+        if (btnModoHvsh) {
+            btnModoHvsh.style.backgroundColor = '#31b0d5'; // Selected
+            btnModoHvsh.style.borderColor = '#269abc';
+        }
+        if (btnModoHvsia) {
+            btnModoHvsia.style.backgroundColor = '#5cb85c'; // Default
+            btnModoHvsia.style.borderColor = '#4cae4c';
+        }
+    }
+
+
     juegoIniciado = true;
+
+    // Disable mode selection buttons after game starts
+    if (btnModoHvsh) btnModoHvsh.disabled = true;
+    if (btnModoHvsia) btnModoHvsia.disabled = true;
 
     ui.limpiarTableroDeClasesJuegoUI();
     historialMovimientos = [];
@@ -250,7 +283,7 @@ function procesarMovimiento(piezaMovidaObj, casillaOrigenStr, casillaDestinoStr,
 
 // --- Función para que la IA juegue su turno ---
 async function dispararTurnoIA() {
-    if (!juegoIniciado || turnoActual !== 'negro') { // Asumimos que la IA es 'negro'
+    if (modoJuego !== 'hvsia' || !juegoIniciado || turnoActual !== 'negro') {
         return;
     }
 
@@ -294,16 +327,16 @@ async function dispararTurnoIA() {
 
 // --- Controlador Principal de Eventos Modificado ---
 function manejarClickCasilla(casillaClickeadaEl) {
-    if (!juegoIniciado || !casillaClickeadaEl ) {
-        return;
-    }
-    if (turnoActual !== 'blanco') { // Solo permitir clicks del humano (blanco)
-         if (juegoIniciado && turnoActual === 'negro') {
-            ui.mostrarMensajeTemporalUI("Es el turno de la IA.", 1500, "info");
-        }
+    if (!juegoIniciado || !casillaClickeadaEl) {
         return;
     }
 
+    // Si es modo Humano vs IA y es turno de Negras (IA), el humano no puede mover.
+    if (modoJuego === 'hvsia' && turnoActual === 'negro') {
+        ui.mostrarMensajeTemporalUI("Es el turno de la IA. Por favor espera.", 2000, "info");
+        return;
+    }
+    // En modo Humano vs Humano, o si es Humano vs IA y turno de Blancas, continuar.
 
     const piezaIdEnCasillaClick = casillaClickeadaEl.dataset.piezaId;
     const piezaObjEnCasillaClick = piezaIdEnCasillaClick ? arrayDePiezasGlobal.find(p => p.id === piezaIdEnCasillaClick && p.posicionActual === casillaClickeadaEl.dataset.posicion) : null;
@@ -368,10 +401,11 @@ function manejarClickCasilla(casillaClickeadaEl) {
             ui.actualizarSeleccionCasillaUI(null); // Resetear selección después de un movimiento válido
             piezaSeleccionada = null;
 
-            // Si el juego sigue y es turno de la IA (negro)
-            if (juegoIniciado && turnoActual === 'negro') {
+            // Si el juego sigue y es turno de la IA (negro) en modo Humano vs IA
+            if (modoJuego === 'hvsia' && juegoIniciado && turnoActual === 'negro') {
                 setTimeout(dispararTurnoIA, 500);
             }
+            // En modo Humano vs Humano, no se llama a la IA. El siguiente click será del otro jugador.
 
         } else { // Movimiento inválido
             ui.mostrarMensajeTemporalUI("Movimiento inválido.", 2500, 'error');
@@ -389,24 +423,69 @@ function manejarClickCasilla(casillaClickeadaEl) {
 // La función local formatearNotacionMovimiento ha sido eliminada.
 // Se utiliza la versión importada de './movimientos_validaciones.js'.
 
+// --- Configuración de Selección de Modo de Juego ---
+function configurarSeleccionModoJuego() {
+    btnModoHvsh = document.getElementById('btn_modo_hvsh');
+    btnModoHvsia = document.getElementById('btn_modo_hvsia');
+
+    if (!btnModoHvsh || !btnModoHvsia) {
+        console.error("No se encontraron los botones de selección de modo de juego.");
+        return;
+    }
+
+    btnModoHvsh.addEventListener('click', () => {
+        if (juegoIniciado) return; // No cambiar modo si el juego ya empezó
+        modoJuego = 'hvsh';
+        btnModoHvsh.style.backgroundColor = '#31b0d5'; // Color seleccionado
+        btnModoHvsh.style.borderColor = '#269abc';
+        btnModoHvsia.style.backgroundColor = '#5cb85c'; // Color por defecto
+        btnModoHvsia.style.borderColor = '#4cae4c'; // Borde por defecto (si aplica)
+        console.log('Modo de juego seleccionado:', modoJuego);
+    });
+
+    btnModoHvsia.addEventListener('click', () => {
+        if (juegoIniciado) return;
+        modoJuego = 'hvsia';
+        btnModoHvsia.style.backgroundColor = '#449d44'; // Color seleccionado
+        btnModoHvsia.style.borderColor = '#398439';
+        btnModoHvsh.style.backgroundColor = '#5bc0de'; // Color por defecto
+        btnModoHvsh.style.borderColor = '#46b8da'; // Borde por defecto (si aplica)
+        console.log('Modo de juego seleccionado:', modoJuego);
+    });
+
+    // Estado inicial de los botones según el modoJuego por defecto
+    if (modoJuego === 'hvsia') {
+        btnModoHvsia.style.backgroundColor = '#449d44';
+        btnModoHvsia.style.borderColor = '#398439';
+        btnModoHvsh.style.backgroundColor = '#5bc0de';
+        btnModoHvsh.style.borderColor = '#46b8da';
+    } else { // 'hvsh'
+        btnModoHvsh.style.backgroundColor = '#31b0d5';
+        btnModoHvsh.style.borderColor = '#269abc';
+        btnModoHvsia.style.backgroundColor = '#5cb85c';
+        btnModoHvsia.style.borderColor = '#4cae4c';
+    }
+}
+
 
 // --- Inicialización del Juego ---
 function inicializarJuego() {
     console.log("main.js: Inicializando juego...");
     if (contenedorTablero) {
         generarTableroVisual(manejarClickCasilla); // Pasa la función de manejo de clicks al generador del tablero
+        configurarSeleccionModoJuego(); // Configurar listeners para los botones de modo
         // inicializarPiezasEnTableroDOM(); // Se llama dentro de confirmarSeleccionTiempo.
 
         ui.actualizarIndicadorTurnoUI(turnoActual); // Mostrar turno inicial (blanco por defecto)
         ui.actualizarVisualizacionTiemposIndividualesUI(tiempoRestanteBlancas, tiempoRestanteNegras, tiempoSeleccionado);
         ui.actualizarDisplayHistorialMovimientosUI(historialMovimientos);
         ui.limpiarResaltadoUltimoMovimientoUI();
-        deshabilitarMovimientoPiezas();
-        ui.deshabilitarCheckboxReglaJaqueUI(false);
+        deshabilitarMovimientoPiezas(); // El juego no está iniciado hasta que se selecciona tiempo.
+        ui.deshabilitarCheckboxReglaJaqueUI(false); // Permitir cambiar la regla antes de iniciar.
 
         ui.configurarListenersBotonesTiempoUI(confirmarSeleccionTiempo);
         ui.configurarListenerDescargaUI(descargarHistorial);
-        ui.actualizarEstadoBotonDescargaUI(historialMovimientos.length > 0);
+        ui.actualizarEstadoBotonDescargaUI(historialMovimientos.length > 0); // Inicialmente deshabilitado
 
     } else {
         console.error("main.js: El contenedor del tablero (#contenedor_tablero) no fue encontrado en el DOM.");
