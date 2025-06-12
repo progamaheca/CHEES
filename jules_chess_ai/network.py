@@ -39,7 +39,7 @@ class ChessNet(nn.Module):
         # Se espera que x ya venga como (N, C, H, W)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
-        x = x.view(-1, self.fc_input_size)
+        x = x.reshape(-1, self.fc_input_size)
         x = F.relu(self.fc_hidden(x))
         x = self.dropout(x)
         policy_logits = self.policy_head(x)
