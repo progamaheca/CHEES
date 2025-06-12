@@ -111,6 +111,12 @@ body {
     /* outline: 3px solid red; */
 }
 
+.movimiento-posible {
+    background-color: rgba(255, 192, 203, 0.6) !important; /* Rosado claro con algo de transparencia */
+    /* Alternativa: un borde sutil si el fondo interfiere mucho con los colores de las casillas
+    /* box-shadow: inset 0 0 0 2px pink; */
+}
+
 /* Estilos para la información de jugadores y temporizadores individuales */
 #info_jugadores {
     display: flex;
