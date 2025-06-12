@@ -341,3 +341,28 @@ body {
     cursor: not-allowed;
     box-shadow: none; /* Sin sombra cuando está deshabilitado */
 }
+
+/* Estilos para la Configuración de Reglas */
+#configuracion_reglas {
+    text-align: center;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+}
+
+#configuracion_reglas label {
+    margin-left: 8px;
+    font-size: 0.95em;
+    color: #333;
+    cursor: pointer;
+}
+
+#checkbox_regla_jaque {
+    vertical-align: middle;
+    cursor: pointer;
+    width: 15px; /* Tamaño del checkbox */
+    height: 15px; /* Tamaño del checkbox */
+}
