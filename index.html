@@ -20,9 +20,31 @@
         <!-- El tablero se generará aquí mediante JavaScript -->
     </div>
 
-    <!-- Sección para mostrar el temporizador -->
-    <div id="mostrar_tiempo">
+    <!-- Sección para mostrar el temporizador (reemplazada) -->
+    <!-- <div id="mostrar_tiempo"> -->
         <!-- El temporizador se actualizará aquí -->
+    <!-- </div> -->
+
+    <div id="info_jugadores">
+        <div id="temporizador_blancas_contenedor" class="contenedor-tiempo">
+            <span class="nombre-jugador">Jugador Blancas: </span><span id="tiempo_blancas">00:00</span>
+        </div>
+        <div id="temporizador_negras_contenedor" class="contenedor-tiempo">
+            <span class="nombre-jugador">Jugador Negras: </span><span id="tiempo_negras">00:00</span>
+        </div>
+    </div>
+
+    <div id="seccion_movimientos">
+        <h3>Historial de Movimientos</h3>
+        <div id="lista_movimientos_contenedor">
+            <ol id="lista_movimientos_ol">
+                <!-- Los movimientos se añadirán aquí como <li> -->
+            </ol>
+        </div>
+    </div>
+
+    <div id="controles_juego_extra">
+        <button id="btn_descargar_movimientos">Descargar Movimientos</button>
     </div>
 
     <!-- Sección para mostrar el turno del jugador -->
