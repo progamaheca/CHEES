@@ -1,345 +1,348 @@
-// main.js
-// Punto de entrada principal de la aplicación.
-console.log("main.js cargado como módulo.");
+// main.js (adaptado para multijugador online)
+console.log("main.js cargado para online.");
 
 // --- Importaciones ---
-import { reglaJaqueHabilitada, checkboxReglaJaque } from './config.js';
+import { reglaJaqueHabilitada as reglaJaqueLocal, checkboxReglaJaque } from './config.js'; // reglaJaqueLocal puede quedar obsoleta
 import { posicionACoordenadas, coordenadasAPosicion } from './util.js';
 import {
-    piezas as arrayDePiezasGlobal,
-    generarTablero as generarTableroVisual,
-    inicializarPiezasEnTableroDOM,
-    getPiezaEnCasilla as obtenerPiezaDeCasillaDesdeModuloTablero,
+    // piezasBaseOriginales, // No se usa directamente para el estado, pero sí para referencia si es necesario.
+    getPiezaBasePorId, // Para obtener símbolo/color original si el servidor solo manda IDs.
+    generarTableroVisual,
+    dibujarTableroYPiezas, // Nueva función para dibujar desde el estado del servidor
     contenedorTablero
 } from './tablero.js';
-import {
-    esMovimientoValidoPeon, esMovimientoValidoTorre, esMovimientoValidoCaballo,
-    esMovimientoValidoAlfil, esMovimientoValidoReina, esMovimientoValidoRey,
-    encontrarPosicionRey, estaEnJaque, getMovimientosLegalesParaPieza,
-    esJaqueMate, esEmpate,
-    formatearNotacionMovimiento
-} from './movimientos_validaciones.js';
+// Las validaciones de movimiento y lógica de jaque/mate ahora están en el servidor.
+// import { ... } from './movimientos_validaciones.js'; // Ya no se usan directamente en el cliente para validar.
 import * as ui from './ui.js';
 
-// --- Estado Principal del Juego ---
-let turnoActual = 'blanco';
-let piezaSeleccionada = null;
-let juegoIniciado = false;
-let historialMovimientos = [];
-let numeroDeMovimientoActual = 1;
+// --- Estado del Cliente para Online ---
+// Temporizadores locales eliminados, ahora manejados por el servidor
+let ws = null; // WebSocket connection
+let currentRoomCode = null;
+let playerColor = null; // 'blanco' o 'negro', asignado por el servidor
+let currentGameState = null; // Recibido del servidor { piezas: [], turnoActual: '', historialMovimientos: [], ... }
+let piezaSeleccionadaLocal = null; // {casillaElemento: DOMEl, piezaObjeto: {id, color, simbolo, ...}, posicionOriginalStr: 'e2'}
+                                // piezaObjeto aquí será una copia de la info de currentGameState.piezas
+let juegoIniciado = false; // Se vuelve true cuando el servidor envía 'gameStart'
 
-let tiempoSeleccionado = 60;
-let tiempoRestanteBlancas = tiempoSeleccionado;
-let tiempoRestanteNegras = tiempoSeleccionado;
-let intervaloTemporizador = null;
+// --- Conexión WebSocket ---
+// const tiempoSeleccionado = 60; // Segundos, ya no se usa localmente
+// let tiempoRestanteBlancasLocal = tiempoSeleccionado; // Ya no se usa localmente
+// let tiempoRestanteNegrasLocal = tiempoSeleccionado; // Ya no se usa localmente
+// let intervaloTemporizador = null; // Ya no se usa localmente
 
-// --- Funciones de Lógica de Juego / Control de Flujo ---
-function cambiarTurno() {
-    turnoActual = (turnoActual === 'blanco' ? 'negro' : 'blanco');
-    ui.actualizarIndicadorTurnoUI(turnoActual);
-}
+const SERVER_URL = `ws://${window.location.host.split(':')[0]}:3000`; // Asume server en mismo host, puerto 3000
+                                                                    // En producción, esto sería `wss://${window.location.host}` si el server está detrás de un proxy
+console.log(`Intentando conectar a: ${SERVER_URL}`);
 
-function deshabilitarMovimientoPiezas() {
-    juegoIniciado = false;
-    ui.deshabilitarCheckboxReglaJaqueUI(true);
-}
+function conectarWebSocket() {
+    ws = new WebSocket(SERVER_URL);
 
-function tickTemporizador(){
-    if(turnoActual==='blanco'){tiempoRestanteBlancas--;if(tiempoRestanteBlancas<0)tiempoRestanteBlancas=0;}
-    else{tiempoRestanteNegras--;if(tiempoRestanteNegras<0)tiempoRestanteNegras=0;}
-    ui.actualizarVisualizacionTiemposIndividualesUI(tiempoRestanteBlancas, tiempoRestanteNegras, tiempoSeleccionado);
-    const tA=(turnoActual==='blanco'&&tiempoRestanteBlancas<=0)||(turnoActual==='negro'&&tiempoRestanteNegras<=0);
-    if(tA){
-        clearInterval(intervaloTemporizador);
-        const perdedor = turnoActual;
-        const ganador = (perdedor === 'blanco' ? 'Negras' : 'Blancas');
-        ui.mostrarMensajeTemporalUI(`¡Tiempo agotado! Jugador ${perdedor} pierde. Gana Jugador ${ganador}.`, 60000, 'info');
-        deshabilitarMovimientoPiezas();
-    }
-}
+    ws.onopen = () => {
+        console.log("Conectado al servidor WebSocket.");
+        // Aquí se podría habilitar la UI para crear/unirse a salas
+        document.getElementById('estado_conexion_servidor').textContent = 'Conectado al servidor.'; \n        document.getElementById('estado_conexion_servidor').style.color = 'green'; \n        document.getElementById('btn_crear_sala_online').disabled = false; \n        document.getElementById('btn_unirse_sala_online').disabled = false; \n        document.getElementById('input_codigo_sala_online').disabled = false;
+        // Simulación de botones de sala (estos deberían ser elementos HTML reales)
+        document.getElementById('btn_crear_sala_online').disabled = false;
+        document.getElementById('btn_unirse_sala_online').disabled = false;
+    };
 
-function iniciarOReanudarTemporizadorJugador(){
-    clearInterval(intervaloTemporizador);
-    ui.actualizarVisualizacionTiemposIndividualesUI(tiempoRestanteBlancas, tiempoRestanteNegras, tiempoSeleccionado);
-    if (juegoIniciado) {
-        intervaloTemporizador = setInterval(tickTemporizador,1000);
-    }
-}
+    ws.onmessage = (event) => {
+        const serverMessage = JSON.parse(event.data);
+        console.log("Mensaje del servidor:", serverMessage);
 
-function confirmarSeleccionTiempo(s){
-    tiempoSeleccionado=s;tiempoRestanteBlancas=s;tiempoRestanteNegras=s;
+        switch (serverMessage.type) {
+            case 'roomCreated':
+                currentRoomCode = serverMessage.roomCode;
+                playerColor = serverMessage.playerColor;
+                // TODO: Actualizar UI real aquí
+                document.getElementById('info_sala_creada').textContent = `Código de Sala: ${currentRoomCode}. Eres ${playerColor}.`; \n                document.getElementById('mensajes_estado_online').textContent = 'Esperando oponente...';
+                ui.mostrarMensajeTemporalUI(`Sala ${currentRoomCode} creada. Eres ${playerColor}. Esperando...`, 5000, "info");
+                break;
 
-    ui.ocultarSeleccionTiempoUI();
-    ui.deshabilitarCheckboxReglaJaqueUI(false);
-    ui.actualizarVisualizacionTiemposIndividualesUI(tiempoRestanteBlancas, tiempoRestanteNegras, tiempoSeleccionado);
+            case 'joinedRoom':
+                currentRoomCode = serverMessage.roomCode;
+                playerColor = serverMessage.playerColor;
+                 document.getElementById('mensajes_estado_online').textContent = `Te uniste a la sala ${currentRoomCode}. Eres ${playerColor}.`;
+                if (serverMessage.opponentConnected) {
+                     document.getElementById('mensajes_estado_online').textContent += ' Oponente conectado.';
+                }
+                // Si el juego no empieza inmediatamente, esperar mensaje 'gameStart'
+                break;
 
-    juegoIniciado = true;
+            case 'opponentJoined':
+                // TODO: Actualizar UI
+                 document.getElementById('mensajes_estado_online').textContent = `Oponente (${serverMessage.opponentColor}) se ha unido. ¡Listos para empezar!`;
+                ui.mostrarMensajeTemporalUI("Oponente conectado.", 3000, "info");
+                // El juego debería empezar pronto con 'gameStart'
+                break;
 
-    ui.limpiarTableroDeClasesJuegoUI();
-    historialMovimientos = [];
-    numeroDeMovimientoActual = 1;
-    ui.actualizarDisplayHistorialMovimientosUI(historialMovimientos);
-    ui.actualizarEstadoBotonDescargaUI(false);
+            case 'gameStart':
+                currentGameState = serverMessage.gameState;
+                playerColor = serverMessage.playerColor; // Confirmar/actualizar color del jugador
+                juegoIniciado = true;
+                console.log("¡Juego iniciado!", currentGameState);
+                ui.ocultarSeleccionTiempoUI(); // Ocultar config de tiempo local si estaba visible
+                document.getElementById('configuracion_reglas').style.display = 'none'; \n                const controlesOnlineEl = document.getElementById('controles_online_juego'); \n                if (controlesOnlineEl) controlesOnlineEl.style.display = 'none'; // Ocultar config de reglas local
+                document.getElementById('controles_juego_inicial').style.display = 'none'; // Ocultar controles de sala
 
-    arrayDePiezasGlobal.forEach(p => {
-        p.posicionActual = p.posicionOriginal;
-        p.elementoPieza = null;
-        if (p.tipo === 'rey' || p.tipo === 'torre') {
-            p.haMovido = false;
+                dibujarTableroYPiezas(currentGameState.piezas);
+                ui.actualizarIndicadorTurnoUI(currentGameState.turnoActual);
+                ui.actualizarVisualizacionTiemposIndividualesUI(currentGameState.tiempoRestanteBlancas, currentGameState.tiempoRestanteNegras, currentGameState.tiempoPorJugador);
+                ui.actualizarIndicadorTurnoUI(currentGameState.turnoActual); // Asegurar que el reloj activo se actualice
+                ui.actualizarDisplayHistorialMovimientosUI(currentGameState.historialMovimientos);
+                // Actualizar piezas capturadas (ui.js necesita adaptación o una nueva función)
+                actualizarDisplayPiezasCapturadasCompleto(currentGameState.piezasCapturadasPorBlancas, currentGameState.piezasCapturadasPorNegras);
+                ui.limpiarTableroDeClasesJuegoUI();
+                if(currentGameState.estadoMeta && currentGameState.estadoMeta.startsWith('JAQUE_')) {
+                    const reyEnJaqueColor = currentGameState.estadoMeta.split('_')[1].toLowerCase();
+                    const posRey = encontrarPosicionReyCliente(currentGameState.piezas, reyEnJaqueColor);
+                    ui.actualizarResaltadoCasillaJaqueUI(posRey, true);
+                    ui.mostrarMensajeTemporalUI(`¡Jaque al rey ${reyEnJaqueColor}!`, 3000, "info");
+                }
+                break;
+
+            case 'gameStateUpdate':
+                const oldTurno = currentGameState ? currentGameState.turnoActual : null;
+                currentGameState = serverMessage.gameState;
+                console.log("Actualización de estado recibida:", currentGameState);
+
+                dibujarTableroYPiezas(currentGameState.piezas);
+                if (currentGameState.ultimoMovimiento) {
+                    const origenEl = document.getElementById(currentGameState.ultimoMovimiento.origen);
+                    const destinoEl = document.getElementById(currentGameState.ultimoMovimiento.destino);
+                    if (origenEl && destinoEl) {
+                        ui.aplicarResaltadoUltimoMovimientoUI(origenEl, destinoEl);
+                    }
+                }
+                ui.actualizarIndicadorTurnoUI(currentGameState.turnoActual);
+                ui.actualizarVisualizacionTiemposIndividualesUI(currentGameState.tiempoRestanteBlancas, currentGameState.tiempoRestanteNegras, currentGameState.tiempoPorJugador);
+                ui.actualizarIndicadorTurnoUI(currentGameState.turnoActual); // Asegurar que el reloj activo se actualice
+                ui.actualizarDisplayHistorialMovimientosUI(currentGameState.historialMovimientos);
+                actualizarDisplayPiezasCapturadasCompleto(currentGameState.piezasCapturadasPorBlancas, currentGameState.piezasCapturadasPorNegras);
+
+                // Manejo de mensajes de jaque, mate, ahogado
+                ui.actualizarResaltadoCasillaJaqueUI(null, false); // Limpiar jaque anterior
+                if (currentGameState.estadoMeta) {
+                    if (currentGameState.estadoMeta.startsWith('JAQUE_')) {
+                        const reyEnJaqueColor = currentGameState.estadoMeta.split('_')[1].toLowerCase();
+                        const posRey = encontrarPosicionReyCliente(currentGameState.piezas, reyEnJaqueColor);
+                        ui.actualizarResaltadoCasillaJaqueUI(posRey, true);
+                        if (oldTurno !== currentGameState.turnoActual) { // Solo mostrar si es un nuevo jaque por un movimiento
+                           ui.mostrarMensajeTemporalUI(`¡Jaque al rey ${reyEnJaqueColor}! (Notación: ${serverMessage.notacionUltimoMovimiento})`, 3000, "info");
+                        }
+                    } else if (currentGameState.estadoMeta.startsWith('JAQUEMATE_')) {
+                        const perdedor = currentGameState.estadoMeta.split('_')[1].toLowerCase();
+                        const ganador = perdedor === 'blanco' ? 'Negro' : 'Blanco';
+                        ui.mostrarMensajeTemporalUI(`¡JAQUE MATE! Gana ${ganador}. (Notación: ${serverMessage.notacionUltimoMovimiento})`, 60000, "info");
+                        deshabilitarMovimientoPiezasLocal(); // Juego terminado
+                    } else if (currentGameState.estadoMeta.startsWith('TIMEOUT_')) {
+                        const perdedorPorTiempo = currentGameState.estadoMeta.split('_')[1].toLowerCase();
+                        const ganadorPorTiempo = perdedorPorTiempo === 'blanco' ? 'Negro' : 'Blanco';
+                        ui.mostrarMensajeTemporalUI(`¡TIEMPO AGOTADO! Jugador ${perdedorPorTiempo} pierde. Gana Jugador ${ganadorPorTiempo}. (Notación: ${serverMessage.notacionUltimoMovimiento || ''})`, 60000, "info");
+                        deshabilitarMovimientoPiezasLocal();
+                    } else if (currentGameState.estadoMeta.startsWith('AHOGADO_')) {
+                        ui.mostrarMensajeTemporalUI(`¡EMPATE POR AHOGADO! (Notación: ${serverMessage.notacionUltimoMovimiento})`, 60000, "info");
+                        deshabilitarMovimientoPiezasLocal(); // Juego terminado
+                    }
+                }
+                break;
+
+            case 'error':
+                console.error("Error del servidor:", serverMessage.message);
+                ui.mostrarMensajeTemporalUI(`Error: ${serverMessage.message}`, 3000, "error");
+                break;
+
+            case 'opponentLeft':
+                ui.mostrarMensajeTemporalUI(serverMessage.message, 5000, "info");
+                deshabilitarMovimientoPiezasLocal(); // Juego terminado o pausado
+                // TODO: Ofrecer opción de reclamar victoria o esperar.
+                break;
+
+            default:
+                console.warn("Tipo de mensaje desconocido del servidor:", serverMessage.type);
         }
-    });
-    if (contenedorTablero) {
-        inicializarPiezasEnTableroDOM();
-    }
-    turnoActual = 'blanco';
-    ui.actualizarIndicadorTurnoUI(turnoActual);
-    iniciarOReanudarTemporizadorJugador();
+    };
+
+    ws.onclose = () => {
+        console.log("Desconectado del servidor WebSocket.");
+        document.getElementById('estado_conexion_servidor').textContent = 'Desconectado. Intenta recargar.'; \n        document.getElementById('estado_conexion_servidor').style.color = 'red'; \n        document.getElementById('btn_crear_sala_online').disabled = true; \n        document.getElementById('btn_unirse_sala_online').disabled = true; \n        document.getElementById('input_codigo_sala_online').disabled = true;
+        juegoIniciado = false;
+        // TODO: Deshabilitar UI de juego, mostrar UI de conexión
+        document.getElementById('btn_crear_sala_online').disabled = true;
+        document.getElementById('btn_unirse_sala_online').disabled = true;
+    };
+
+    ws.onerror = (error) => {
+        console.error("Error de WebSocket:", error);
+        ui.mostrarMensajeTemporalUI("Error de conexión WebSocket.", 3000, "error");
+    };
 }
 
-// --- Controlador Principal de Eventos ---
+// --- Lógica de Interacción del Cliente ---
 function manejarClickCasilla(casillaClickeadaEl) {
-    if (!juegoIniciado || !casillaClickeadaEl) return;
-
-    const piezaIdEnCasillaClick = casillaClickeadaEl.dataset.piezaId;
-    const piezaObjEnCasillaClick = piezaIdEnCasillaClick ? arrayDePiezasGlobal.find(p => p.id === piezaIdEnCasillaClick && p.posicionActual === casillaClickeadaEl.dataset.posicion) : null;
-
-    if (!piezaSeleccionada) {
-        ui.limpiarResaltadoMovimientosPosiblesUI();
-        if (piezaObjEnCasillaClick) {
-            if (piezaObjEnCasillaClick.color === turnoActual) {
-                piezaSeleccionada = {casillaElemento:casillaClickeadaEl, piezaObjeto:piezaObjEnCasillaClick, posicionOriginalStr:casillaClickeadaEl.dataset.posicion};
-                ui.actualizarSeleccionCasillaUI(casillaClickeadaEl);
-                const movimientos = getMovimientosLegalesParaPieza(piezaSeleccionada.piezaObjeto, piezaSeleccionada.posicionOriginalStr);
-                ui.resaltarMovimientosLegalesUI(movimientos);
-            } else {
-                ui.mostrarMensajeTemporalUI("No puedes mover una pieza del oponente.", 2500, 'error');
-            }
+    if (!juegoIniciado || !currentGameState || currentGameState.turnoActual !== playerColor) {
+        if(juegoIniciado && currentGameState.turnoActual !== playerColor) {
+            ui.mostrarMensajeTemporalUI("No es tu turno.", 1500, "error");
         }
-    } else {
-        const cOrigenEl = piezaSeleccionada.casillaElemento;
-        const pMovidaObj = piezaSeleccionada.piezaObjeto;
-        const cOrigenStr = piezaSeleccionada.posicionOriginalStr;
-        const cDestinoStr = casillaClickeadaEl.dataset.posicion;
-
-        if (cOrigenEl === casillaClickeadaEl) {
-            ui.limpiarResaltadoMovimientosPosiblesUI();
-            ui.actualizarSeleccionCasillaUI(null);
-            piezaSeleccionada = null;
-            return;
-        }
-
-        if (piezaObjEnCasillaClick && piezaObjEnCasillaClick.color === pMovidaObj.color) {
-            ui.limpiarResaltadoMovimientosPosiblesUI();
-            ui.actualizarSeleccionCasillaUI(casillaClickeadaEl);
-            piezaSeleccionada = {casillaElemento:casillaClickeadaEl, piezaObjeto:piezaObjEnCasillaClick, posicionOriginalStr:cDestinoStr};
-            const movimientosNuevos = getMovimientosLegalesParaPieza(piezaSeleccionada.piezaObjeto, piezaSeleccionada.posicionOriginalStr);
-            ui.resaltarMovimientosLegalesUI(movimientosNuevos);
-            return;
-        }
-
-        let movValidoBase = false;
-        if(pMovidaObj.tipo==='peon')movValidoBase=esMovimientoValidoPeon(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='torre')movValidoBase=esMovimientoValidoTorre(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='caballo')movValidoBase=esMovimientoValidoCaballo(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='alfil')movValidoBase=esMovimientoValidoAlfil(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='reina')movValidoBase=esMovimientoValidoReina(pMovidaObj,cOrigenStr,cDestinoStr); else if(pMovidaObj.tipo==='rey')movValidoBase=esMovimientoValidoRey(pMovidaObj,cOrigenStr,cDestinoStr);
-
-        let movFinalValido = movValidoBase;
-        const pEnDestinoOriginal = obtenerPiezaDeCasillaDesdeModuloTablero(cDestinoStr);
-
-        if (movValidoBase && reglaJaqueHabilitada) {
-            const colorJugadorActual = pMovidaObj.color;
-            pMovidaObj.posicionActual = cDestinoStr;
-            let idPiezaCapturadaSim = null;
-            if(pEnDestinoOriginal){ const pCapSimArrayObj=arrayDePiezasGlobal.find(p=>p.id===pEnDestinoOriginal.id); if(pCapSimArrayObj){idPiezaCapturadaSim=pCapSimArrayObj.id;pCapSimArrayObj.posicionActual=null;} }
-            if(estaEnJaque(colorJugadorActual)){movFinalValido=false;}
-            pMovidaObj.posicionActual = cOrigenStr;
-            if(idPiezaCapturadaSim){ const pRestSimArrayObj=arrayDePiezasGlobal.find(p=>p.id===idPiezaCapturadaSim); if(pRestSimArrayObj){pRestSimArrayObj.posicionActual=cDestinoStr;} }
-        }
-
-        if (movFinalValido) {
-            // Actualizar estado 'haMovido' para Reyes y Torres
-            if (pMovidaObj.tipo === 'rey' || pMovidaObj.tipo === 'torre') {
-                pMovidaObj.haMovido = true;
-            }
-
-            ui.limpiarResaltadoMovimientosPosiblesUI();
-            ui.aplicarResaltadoUltimoMovimientoUI(cOrigenEl, casillaClickeadaEl);
-
-            if (pEnDestinoOriginal) {
-                ui.actualizarPiezasCapturadasUI(pMovidaObj.color, pEnDestinoOriginal.simbolo);
-                const pCapRealArrayObj=arrayDePiezasGlobal.find(p=>p.id===pEnDestinoOriginal.id);
-                if(pCapRealArrayObj) pCapRealArrayObj.posicionActual=null;
-                if (pEnDestinoOriginal.elementoPieza && pEnDestinoOriginal.elementoPieza.parentElement) {
-                    pEnDestinoOriginal.elementoPieza.remove();
-                }
-                pEnDestinoOriginal.elementoPieza = null;
-            }
-
-            // --- Lógica de Enroque: Mover Torre Adicionalmente ---
-            const esEnroque = (pMovidaObj.tipo === 'rey' && Math.abs(posicionACoordenadas(cDestinoStr).columna - posicionACoordenadas(cOrigenStr).columna) === 2 && reglaJaqueHabilitada);
-
-            if (esEnroque) {
-                let torre, torreNuevaPosStr, torreViejaPosStr;
-                const filaReyChar = cOrigenStr[1]; // Fila del rey ('1' u '8')
-
-                if (cDestinoStr[0] === 'g') { // Enroque corto (rey a g)
-                    torreViejaPosStr = `h${filaReyChar}`;
-                    torreNuevaPosStr = `f${filaReyChar}`;
-                } else { // Enroque largo (rey a c)
-                    torreViejaPosStr = `a${filaReyChar}`;
-                    torreNuevaPosStr = `d${filaReyChar}`;
-                }
-
-                torre = arrayDePiezasGlobal.find(p => p.posicionActual === torreViejaPosStr && p.tipo === 'torre' && p.color === pMovidaObj.color);
-
-                if (torre && torre.elementoPieza) {
-                    const casillaOrigenTorreEl = document.getElementById(torreViejaPosStr);
-                    const casillaDestinoTorreEl = document.getElementById(torreNuevaPosStr);
-
-                    if (casillaDestinoTorreEl) { // Mover DOM de la torre
-                        casillaDestinoTorreEl.appendChild(torre.elementoPieza);
-                        casillaDestinoTorreEl.dataset.piezaId = torre.id;
-                    }
-                    if (casillaOrigenTorreEl) casillaOrigenTorreEl.removeAttribute('data-piezaId');
-
-                    torre.posicionActual = torreNuevaPosStr; // Actualizar array de la torre
-                    torre.haMovido = true;
-                } else {
-                    console.error("Error crítico en enroque: No se encontró la torre o su elemento DOM.", torreViejaPosStr, torre);
-                }
-            }
-            // --- Fin Lógica de Enroque ---
-
-            // Mover pieza principal en el DOM (Rey u otra pieza)
-            if (pMovidaObj.elementoPieza) {
-                 casillaClickeadaEl.appendChild(pMovidaObj.elementoPieza);
-            } else {
-                 casillaClickeadaEl.textContent = pMovidaObj.simbolo;
-                 console.warn("Pieza movida no tenía elementoPieza asociado:", pMovidaObj);
-            }
-            cOrigenEl.innerHTML = '';
-            casillaClickeadaEl.dataset.piezaId = pMovidaObj.id;
-            delete cOrigenEl.dataset.piezaId;
-
-            // Actualizar estado lógico final de la pieza movida
-            pMovidaObj.posicionActual = cDestinoStr;
-
-            let finDelJuego = false;
-            let mensajeFinJuego = "";
-            const jugadorQueRealizoMovimiento = turnoActual;
-            const esCaptura = !!pEnDestinoOriginal;
-            let notacionBaseDelMovimiento = formatearNotacionMovimiento(pMovidaObj, cOrigenStr, cDestinoStr, esCaptura, esEnroque ? (cDestinoStr[0] === 'g' ? 'O-O' : 'O-O-O') : "");
-            if (esEnroque) { // Sobrescribir notación para enroque
-                 notacionBaseDelMovimiento = (cDestinoStr[0] === 'g' ? 'O-O' : 'O-O-O');
-            }
-            let sufijoParaNotacion = "";
-
-            if (!reglaJaqueHabilitada && pEnDestinoOriginal && pEnDestinoOriginal.tipo === 'rey') {
-                finDelJuego = true;
-                mensajeFinJuego = `¡Jugador ${jugadorQueRealizoMovimiento === 'blanco' ? 'Blanco' : 'Negro'} gana capturando al rey!`;
-            }
-
-            if (!finDelJuego) {
-                cambiarTurno();
-                ui.actualizarResaltadoCasillaJaqueUI(null, false);
-
-                if (reglaJaqueHabilitada) {
-                    if (esJaqueMate(turnoActual)) {
-                        finDelJuego = true;
-                        mensajeFinJuego = `¡JAQUE MATE! Gana el jugador ${jugadorQueRealizoMovimiento}.`;
-                        sufijoParaNotacion = "#";
-                        ui.actualizarResaltadoCasillaJaqueUI(encontrarPosicionRey(turnoActual), true);
-                    } else if (estaEnJaque(turnoActual)) {
-                        ui.actualizarResaltadoCasillaJaqueUI(encontrarPosicionRey(turnoActual), true);
-                        sufijoParaNotacion = "+";
-                    }
-                }
-                if (!finDelJuego && esEmpate(turnoActual)) {
-                    finDelJuego = true;
-                    mensajeFinJuego = "¡EMPATE (Ahogado)! La partida termina en tablas.";
-                }
-            }
-
-            const notacionFinalDelMovimiento = notacionBaseDelMovimiento + sufijoParaNotacion;
-            if (jugadorQueRealizoMovimiento === 'blanco') {
-                historialMovimientos.push({ numero: numeroDeMovimientoActual, blancas: notacionFinalDelMovimiento, negras: "" });
-            } else {
-                if (historialMovimientos.length > 0) {
-                    historialMovimientos[historialMovimientos.length - 1].negras = notacionFinalDelMovimiento;
-                } else {
-                     historialMovimientos.push({ numero: numeroDeMovimientoActual, blancas: "", negras: notacionFinalDelMovimiento });
-                }
-                if (!finDelJuego || (finDelJuego && jugadorQueRealizoMovimiento === 'negro')) {
-                     numeroDeMovimientoActual++;
-                }
-            }
-            ui.actualizarDisplayHistorialMovimientosUI(historialMovimientos);
-
-            if(finDelJuego){
-                ui.mostrarMensajeTemporalUI(mensajeFinJuego, 60000, 'info');
-                deshabilitarMovimientoPiezas();
-                clearInterval(intervaloTemporizador);
-            } else {
-                if (reglaJaqueHabilitada && sufijoParaNotacion === "+") {
-                     ui.mostrarMensajeTemporalUI(`¡Jaque al rey ${turnoActual}!`, 3000, 'info');
-                }
-                iniciarOReanudarTemporizadorJugador();
-            }
-        } else {
-            if (piezaSeleccionada) {
-                 ui.mostrarMensajeTemporalUI("Movimiento inválido.", 2500, 'error');
-            }
-        }
-        if (movFinalValido) {
-             ui.actualizarSeleccionCasillaUI(null);
-             piezaSeleccionada = null;
-        }
-    }
-}
-
-// Función para formatear notación (se moverá a logica_juego.js)
-function formatearNotacionMovimiento(pieza, casillaOrigenStr, casillaDestinoStr, esCaptura, overrideNotacion = "") {
-    if (overrideNotacion) return overrideNotacion; // Para enroque
-
-    let notacion = "";
-    const mapTipoALetra = { 'torre':'T', 'caballo':'C', 'alfil':'A', 'reina':'D', 'rey':'R' };
-    if (pieza.tipo !== 'peon') { notacion += mapTipoALetra[pieza.tipo] || ''; }
-    if (esCaptura) { if (pieza.tipo === 'peon' && casillaOrigenStr) { notacion += casillaOrigenStr.charAt(0); } notacion += "x"; }
-    notacion += casillaDestinoStr;
-    return notacion;
-}
-
-
-// --- Inicialización del Juego ---
-function inicializarJuego() {
-    console.log("main.js: Inicializando juego...");
-    if (contenedorTablero) {
-        generarTableroVisual(manejarClickCasilla);
-        inicializarPiezasEnTableroDOM();
-
-        ui.actualizarIndicadorTurnoUI(turnoActual);
-        ui.actualizarVisualizacionTiemposIndividualesUI(tiempoRestanteBlancas, tiempoRestanteNegras, tiempoSeleccionado);
-        ui.actualizarDisplayHistorialMovimientosUI(historialMovimientos);
-        ui.limpiarResaltadoUltimoMovimientoUI();
-        deshabilitarMovimientoPiezas();
-        ui.deshabilitarCheckboxReglaJaqueUI(false);
-
-        ui.configurarListenersBotonesTiempoUI(confirmarSeleccionTiempo);
-        ui.configurarListenerDescargaUI(descargarHistorial);
-        ui.actualizarEstadoBotonDescargaUI(historialMovimientos.length > 0);
-
-    } else {
-        console.error("main.js: El contenedor del tablero (#contenedor_tablero) no fue encontrado en el DOM.");
-    }
-}
-
-// Callback para el botón de descarga
-function descargarHistorial() {
-    if (historialMovimientos.length === 0) {
-        ui.mostrarMensajeTemporalUI("No hay movimientos para descargar.", 2000, 'info');
         return;
     }
-    const textoParaDescargar = ui.generarTextoHistorialUI(historialMovimientos, tiempoSeleccionado, reglaJaqueHabilitada);
-    const fecha = new Date();
-    const nombreArchivo = `partida_ajedrez_${fecha.getFullYear()}${String(fecha.getMonth() + 1).padStart(2, '0')}${String(fecha.getDate()).padStart(2, '0')}_${String(fecha.getHours()).padStart(2,'0')}${String(fecha.getMinutes()).padStart(2,'0')}.txt`;
-    ui.descargarArchivoTextoUI(nombreArchivo, textoParaDescargar);
+
+    const piezaIdEnCasillaClick = casillaClickeadaEl.dataset.piezaId;
+    // Encontrar la pieza en nuestro estado local (currentGameState.piezas)
+    const piezaObjEnCasillaClick = piezaIdEnCasillaClick ? currentGameState.piezas.find(p => p.id === piezaIdEnCasillaClick && p.posicionActual === casillaClickeadaEl.dataset.posicion) : null;
+
+    if (!piezaSeleccionadaLocal) { // Si no hay pieza seleccionada actualmente
+        ui.limpiarResaltadoMovimientosPosiblesUI(); // Limpiar resaltados anteriores (si los hubiera)
+        if (piezaObjEnCasillaClick) {
+            if (piezaObjEnCasillaClick.color === playerColor) { // Es una pieza del jugador actual
+                piezaSeleccionadaLocal = {
+                    casillaElemento: casillaClickeadaEl,
+                    piezaObjeto: { ...piezaObjEnCasillaClick }, // Copia para evitar mutación accidental
+                    posicionOriginalStr: casillaClickeadaEl.dataset.posicion
+                };
+                ui.actualizarSeleccionCasillaUI(casillaClickeadaEl);
+                // TODO Opcional: Pedir al servidor los movimientos legales para esta pieza y resaltarlos.
+                // Por ahora, no se resaltan movimientos posibles para simplificar.
+            } else {
+                ui.mostrarMensajeTemporalUI("No puedes mover una pieza del oponente.", 2500, "error");
+            }
+        }
+    } else { // Ya hay una pieza seleccionada, este click es para mover o deseleccionar
+        const cOrigenEl = piezaSeleccionadaLocal.casillaElemento;
+        const pMovidaObj = piezaSeleccionadaLocal.piezaObjeto;
+        const cOrigenStr = piezaSeleccionadaLocal.posicionOriginalStr;
+        const cDestinoStr = casillaClickeadaEl.dataset.posicion;
+
+        if (cOrigenEl === casillaClickeadaEl) { // Click en la misma casilla para deseleccionar
+            ui.limpiarResaltadoMovimientosPosiblesUI();
+            ui.actualizarSeleccionCasillaUI(null);
+            piezaSeleccionadaLocal = null;
+            return;
+        }
+
+        // Si se hace click en otra pieza propia, seleccionarla
+        if (piezaObjEnCasillaClick && piezaObjEnCasillaClick.color === playerColor) {
+            ui.limpiarResaltadoMovimientosPosiblesUI();
+            ui.actualizarSeleccionCasillaUI(casillaClickeadaEl);
+            piezaSeleccionadaLocal = {
+                casillaElemento: casillaClickeadaEl,
+                piezaObjeto: { ...piezaObjEnCasillaClick },
+                posicionOriginalStr: cDestinoStr
+            };
+            // TODO Opcional: Pedir movimientos legales al servidor.
+            return;
+        }
+
+        // Es un intento de movimiento a una casilla vacía o con pieza enemiga
+        console.log(`Intentando mover pieza ${pMovidaObj.id} de ${cOrigenStr} a ${cDestinoStr}`);
+        ws.send(JSON.stringify({
+            type: 'makeMove',
+            payload: {
+                piezaId: pMovidaObj.id,
+                casillaOrigen: cOrigenStr,
+                casillaDestino: cDestinoStr,
+                // Opcional: si hay promoción de peón, enviar la pieza elegida
+                // promocionA: 'reina' (ejemplo)
+            }
+        }));
+
+        // Limpiar selección local. La UI se actualizará cuando llegue 'gameStateUpdate'.
+        ui.actualizarSeleccionCasillaUI(null);
+        ui.limpiarResaltadoMovimientosPosiblesUI();
+        piezaSeleccionadaLocal = null;
+    }
 }
 
-document.addEventListener('DOMContentLoaded', inicializarJuego);
+// --- Funciones Auxiliares del Cliente ---
+function encontrarPosicionReyCliente(piezasDelJuego, colorRey) {
+    const rey = piezasDelJuego.find(p => p.tipo === 'rey' && p.color === colorRey && p.posicionActual);
+    return rey ? rey.posicionActual : null;
+}
+
+function deshabilitarMovimientoPiezasLocal() {
+    juegoIniciado = false; // Previene más interacciones de click que intenten enviar movimientos
+    // Aquí se podría añadir lógica para "congelar" el tablero visualmente si se desea
+    console.log("Movimiento de piezas deshabilitado localmente.");
+}
+
+// Función para actualizar el display de todas las piezas capturadas
+function actualizarDisplayPiezasCapturadasCompleto(capturadasPorBlancasSimbolos, capturadasPorNegrasSimbolos) {
+    const simbolosBlancasEl = document.getElementById('simbolos_blancas_capturo');
+    const simbolosNegrasEl = document.getElementById('simbolos_negras_capturo');
+
+    if (simbolosBlancasEl) {
+        simbolosBlancasEl.innerHTML = ''; // Limpiar
+        (capturadasPorBlancasSimbolos || []).forEach(simbolo => {
+            const span = document.createElement('span');
+            span.textContent = simbolo;
+            simbolosBlancasEl.appendChild(span);
+        });
+    }
+    if (simbolosNegrasEl) {
+        simbolosNegrasEl.innerHTML = ''; // Limpiar
+        (capturadasPorNegrasSimbolos || []).forEach(simbolo => {
+            const span = document.createElement('span');
+            span.textContent = simbolo;
+            simbolosNegrasEl.appendChild(span);
+        });
+    }
+}
+
+
+// --- Inicialización del Juego del Cliente ---
+function inicializarJuegoCliente() {
+    console.log("main.js: Inicializando UI para juego online...");
+    if (contenedorTablero) {
+        generarTableroVisual(manejarClickCasilla); // Generar el tablero visual, los clicks ahora van al servidor
+        // No se inicializan piezas aquí, se espera al servidor.
+        ui.actualizarIndicadorTurnoUI("Esperando conexión...");
+        // Configurar listeners para botones de sala (simulados por ahora)
+        document.getElementById('btn_crear_sala_online').addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'createRoom' }));
+            } else { ui.mostrarMensajeTemporalUI("No conectado al servidor.", 2000, "error"); }
+        });
+        document.getElementById('btn_unirse_sala_online').addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const roomCodeToJoin = prompt("Ingresa el código de la sala:");
+                if (roomCodeToJoin) {
+                    ws.send(JSON.stringify({ type: 'joinRoom', payload: { roomCode: roomCodeToJoin.trim().toUpperCase() } }));
+                }
+            } else { ui.mostrarMensajeTemporalUI("No conectado al servidor.", 2000, "error"); }
+        });
+        document.getElementById('btn_crear_sala_online').disabled = true;
+        document.getElementById('btn_unirse_sala_online').disabled = true; \n        document.getElementById('input_codigo_sala_online').disabled = true; \n        document.getElementById('estado_conexion_servidor').textContent = 'Conectando...';
+
+        // Ocultar elementos de configuración local que ya no aplican
+        // ui.ocultarSeleccionTiempoUI(); // Ya no existe esta función, los botones de tiempo se eliminaron del HTML
+        const configuracionTiempoEl = document.getElementById('configuracion_tiempo'); // El div aún existe pero comentado
+        if (configuracionTiempoEl) configuracionTiempoEl.style.display = 'none';
+
+        document.getElementById('configuracion_reglas').style.display = 'none'; // La regla de jaque la maneja el servidor
+        document.getElementById('controles_juego_extra').style.display = 'none'; // Descarga de movimientos podría ser server-side o rediseñada
+
+    } else {
+        console.error("main.js: El contenedor del tablero no fue encontrado.");
+    }
+    conectarWebSocket(); // Iniciar la conexión
+}
+
+// Lógica de temporizador local eliminada. El servidor gestiona los tiempos.
+
+    const btnUnirse = document.getElementById("btn_unirse_sala_online");
+    if (btnUnirse) {
+        btnUnirse.addEventListener("click", () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const roomCodeToJoin = document.getElementById("input_codigo_sala_online").value;
+                if (roomCodeToJoin) {
+                    ws.send(JSON.stringify({ type: "joinRoom", payload: { roomCode: roomCodeToJoin.trim().toUpperCase() } }));
+                } else {
+                    ui.mostrarMensajeTemporalUI("Ingresa un código de sala.", 2000, "warning");
+                }
+            } else { ui.mostrarMensajeTemporalUI("No conectado al servidor.", 2000, "error"); }
+        });
+    }
+document.addEventListener('DOMContentLoaded', inicializarJuegoCliente);
+
+console.log("Fin de main.js online.");

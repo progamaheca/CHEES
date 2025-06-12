@@ -8,18 +8,43 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!--
     <!-- Sección para seleccionar el tiempo de juego -->
     <div id="configuracion_tiempo">
         <h2>Selecciona el tiempo de juego:</h2>
         <button id="btn_tiempo_1_min">1 Minuto</button>
         <button id="btn_tiempo_5_min">5 Minutos</button>
+-->
     </div>
 
+<!--
     <div id="configuracion_reglas" style="text-align: center; margin-top: 15px; margin-bottom: 15px; padding: 10px; background-color: #f0f0f0; border-radius: 5px;">
         <input type="checkbox" id="checkbox_regla_jaque" name="regla_jaque" checked>
         <label for="checkbox_regla_jaque" style="margin-left: 5px; cursor: pointer;">Habilitar Regla de Jaque (incluye Jaque Mate y previene Auto-Jaque)</label>
+-->
     </div>
 
+    <!-- Sección para Conexión y Salas Online -->
+    <div id="controles_online_juego" style="text-align: center; margin-bottom: 20px; padding: 15px; background-color: #e9e9e9; border-radius: 8px;">
+        <h2 style="margin-top: 0;">Juego Online</h2>
+        <div id="estado_conexion_servidor" style="margin-bottom: 10px; font-weight: bold;">Desconectado</div>
+
+        <div id="seccion_crear_sala" style="margin-bottom: 15px;">
+            <button id="btn_crear_sala_online">Crear Nueva Sala</button>
+            <div id="info_sala_creada" style="margin-top: 8px;">
+                <!-- El código de la sala aparecerá aquí. Ej: Sala: ABCDEF -->
+            </div>
+        </div>
+
+        <div id="seccion_unirse_sala" style="margin-bottom: 15px;">
+            <input type="text" id="input_codigo_sala_online" placeholder="Código de Sala" style="margin-right: 5px; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+            <button id="btn_unirse_sala_online">Unirse a Sala</button>
+        </div>
+
+        <div id="mensajes_estado_online" style="min-height: 20px; margin-top: 10px; font-style: italic;">
+            <!-- Mensajes como "Esperando oponente..." o errores aparecerán aquí -->
+        </div>
+    </div>
     <!-- Contenedor principal del tablero de ajedrez -->
     <div id="contenedor_tablero">
         <!-- El tablero se generará aquí mediante JavaScript -->
