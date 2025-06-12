@@ -70,3 +70,43 @@ body {
     background-color: #e0e0e0;
     border-radius: 5px;
 }
+
+/* Estilos para la sección de configuración de tiempo */
+#configuracion_tiempo {
+    margin-bottom: 20px;
+    text-align: center;
+    padding: 15px;
+    border: 2px solid #bbb;
+    background-color: #f9f9f9;
+    border-radius: 5px;
+}
+
+#configuracion_tiempo h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.3em;
+    color: #333;
+}
+
+#configuracion_tiempo button {
+    padding: 10px 15px;
+    margin: 0 10px;
+    font-size: 1em;
+    cursor: pointer;
+    background-color: #4CAF50; /* Verde */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+#configuracion_tiempo button:hover {
+    background-color: #45a049; /* Verde más oscuro */
+}
+
+/* Estilo para resaltar la casilla del rey en jaque */
+.en-jaque {
+    background-color: #ff7f7f !important; /* Un rojo claro, !important para asegurar que se aplique */
+    /* También se podría usar un outline o box-shadow distintivo */
+    /* outline: 3px solid red; */
+}
