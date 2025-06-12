@@ -1,3 +1,5 @@
+# Dependencias: pip install torch numpy python-chess flask flask-cors
+# (Asegúrate de tener un entorno de Python configurado con estas bibliotecas)
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
