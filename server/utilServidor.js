@@ -54,8 +54,82 @@ function formatearTiempo(segundos) {
     return `${minutos.toString().padStart(2, '0')}:${segRestantes.toString().padStart(2, '0')}`;
 }
 
+// Helper para convertir nuestro array de piezas a FEN
+// Esto es una simplificación y podría no cubrir todos los casos de FEN (ej. enroque, peón al paso, contador de movimientos)
+// pero será suficiente para que Stockfish y el agente Python entiendan la posición de las piezas.
+function boardToFEN(piezas, turnoActual, enroquePosible, peonAlPasoTargetSquare) {
+    let fen = "";
+    for (let fila = 0; fila < 8; fila++) {
+        let emptySquares = 0;
+        for (let col = 0; col < 8; col++) {
+            const pos = coordenadasAPosicion({ fila, columna: col });
+            const pieza = piezas.find(p => p.posicionActual === pos);
+            if (pieza) {
+                if (emptySquares > 0) {
+                    fen += emptySquares;
+                    emptySquares = 0;
+                }
+                let fenChar = pieza.simbolo;
+                // Convertir nuestros símbolos a los caracteres FEN estándar
+                switch (pieza.simbolo) {
+                    case '♙': fenChar = 'P'; break;
+                    case '♟': fenChar = 'p'; break;
+                    case '♖': fenChar = 'R'; break;
+                    case '♜': fenChar = 'r'; break;
+                    case '♘': fenChar = 'N'; break;
+                    case '♞': fenChar = 'n'; break;
+                    case '♗': fenChar = 'B'; break;
+                    case '♝': fenChar = 'b'; break;
+                    case '♕': fenChar = 'Q'; break;
+                    case '♛': fenChar = 'q'; break;
+                    case '♔': fenChar = 'K'; break;
+                    case '♚': fenChar = 'k'; break;
+                }
+                fen += pieza.color === 'blanco' ? fenChar.toUpperCase() : fenChar.toLowerCase();
+            } else {
+                emptySquares++;
+            }
+        }
+        if (emptySquares > 0) {
+            fen += emptySquares;
+        }
+        if (fila < 7) {
+            fen += "/";
+        }
+    }
+
+    // Turno
+    fen += turnoActual === 'blanco' ? " w" : " b";
+
+    // Derechos de enroque (simplificado, se necesitaría más estado de 'haMovido' rey/torres)
+    // Por ahora, asumimos que si las piezas están en su sitio original y no han movido, pueden enrocar.
+    // Esto es una simplificación GRANDE. Una implementación FEN completa es más compleja.
+    // Para la IA, la posición de las piezas es lo más crucial.
+    let castlingRights = "";
+    if (enroquePosible) { // Este objeto debería venir del gameState
+        if (enroquePosible.K) castlingRights += "K";
+        if (enroquePosible.Q) castlingRights += "Q";
+        if (enroquePosible.k) castlingRights += "k";
+        if (enroquePosible.q) castlingRights += "q";
+    }
+    fen += castlingRights ? ` ${castlingRights}` : " -";
+
+
+    // Peón al paso (ej. "e3"). '-' si no hay.
+    fen += peonAlPasoTargetSquare ? ` ${peonAlPasoTargetSquare}` : " -";
+
+    // Contador de medios movimientos para la regla de 50 movimientos (ej. "0")
+    // Contador de movimientos completos (ej. "1")
+    // Estos son menos críticos para que la IA simplemente elija un movimiento desde una posición.
+    fen += " 0 1"; // Placeholder
+
+    return fen;
+}
+
+
 module.exports = {
     posicionACoordenadas,
     coordenadasAPosicion,
-    formatearTiempo
+    formatearTiempo,
+    boardToFEN
 };

@@ -1,0 +1,3 @@
+chess
+tensorflow
+numpy

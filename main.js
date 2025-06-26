@@ -40,51 +40,71 @@ function conectarWebSocket() {
 
     ws.onopen = () => {
         console.log("Conectado al servidor WebSocket.");
-        // Aquí se podría habilitar la UI para crear/unirse a salas
-        document.getElementById('estado_conexion_servidor').textContent = 'Conectado al servidor.'; \n        document.getElementById('estado_conexion_servidor').style.color = 'green'; \n        document.getElementById('btn_crear_sala_online').disabled = false; \n        document.getElementById('btn_unirse_sala_online').disabled = false; \n        document.getElementById('input_codigo_sala_online').disabled = false;
-        // Simulación de botones de sala (estos deberían ser elementos HTML reales)
+        document.getElementById('estado_conexion_servidor').textContent = 'Conectado al servidor.';
+        document.getElementById('estado_conexion_servidor').style.color = 'green';
+        // Habilitar controles de sala
         document.getElementById('btn_crear_sala_online').disabled = false;
         document.getElementById('btn_unirse_sala_online').disabled = false;
+        document.getElementById('input_codigo_sala_online').disabled = false;
+        document.getElementById('select_color_ia').disabled = false;
+        document.getElementById('btn_jugar_vs_stockfish').disabled = false;
+        document.getElementById('btn_jugar_vs_cosmic').disabled = false;
     };
 
     ws.onmessage = (event) => {
-        const serverMessage = JSON.parse(event.data);
-        console.log("Mensaje del servidor:", serverMessage);
+        let serverMessage;
+        try {
+            serverMessage = JSON.parse(event.data);
+        } catch (e) {
+            console.error("[Cliente] Error parseando mensaje del servidor:", event.data, e);
+            return;
+        }
+
+        console.log("[Cliente] Mensaje del servidor recibido:", serverMessage);
 
         switch (serverMessage.type) {
             case 'roomCreated':
                 currentRoomCode = serverMessage.roomCode;
-                playerColor = serverMessage.playerColor;
-                // TODO: Actualizar UI real aquí
-                document.getElementById('info_sala_creada').textContent = `Código de Sala: ${currentRoomCode}. Eres ${playerColor}.`; \n                document.getElementById('mensajes_estado_online').textContent = 'Esperando oponente...';
+                playerColor = serverMessage.playerColor; // El servidor ahora lo envía
+                console.log(`[Cliente] Sala creada: ${currentRoomCode}, soy ${playerColor}`);
+                document.getElementById('info_sala_creada').textContent = `Código de Sala: ${currentRoomCode}. Eres ${playerColor}.`;
+                document.getElementById('mensajes_estado_online').textContent = 'Esperando oponente...';
                 ui.mostrarMensajeTemporalUI(`Sala ${currentRoomCode} creada. Eres ${playerColor}. Esperando...`, 5000, "info");
                 break;
 
-            case 'joinedRoom':
+            case 'joinedRoom': // Este caso puede que ya no sea enviado directamente si gameStart lo reemplaza para el que se une
                 currentRoomCode = serverMessage.roomCode;
                 playerColor = serverMessage.playerColor;
-                 document.getElementById('mensajes_estado_online').textContent = `Te uniste a la sala ${currentRoomCode}. Eres ${playerColor}.`;
-                if (serverMessage.opponentConnected) {
+                console.log(`[Cliente] Unido a sala: ${currentRoomCode}, soy ${playerColor}`);
+                document.getElementById('mensajes_estado_online').textContent = `Te uniste a la sala ${currentRoomCode}. Eres ${playerColor}.`;
+                if (serverMessage.opponentConnected) { // Esto podría ser parte de gameStart ahora
                      document.getElementById('mensajes_estado_online').textContent += ' Oponente conectado.';
                 }
-                // Si el juego no empieza inmediatamente, esperar mensaje 'gameStart'
                 break;
 
-            case 'opponentJoined':
-                // TODO: Actualizar UI
-                 document.getElementById('mensajes_estado_online').textContent = `Oponente (${serverMessage.opponentColor}) se ha unido. ¡Listos para empezar!`;
+            case 'opponentJoined': // Esto también podría estar cubierto por gameStart para ambos jugadores en HvH
+                console.log(`[Cliente] Oponente ${serverMessage.opponentColor} se ha unido.`);
+                document.getElementById('mensajes_estado_online').textContent = `Oponente (${serverMessage.opponentColor}) se ha unido. ¡Listos para empezar!`;
                 ui.mostrarMensajeTemporalUI("Oponente conectado.", 3000, "info");
-                // El juego debería empezar pronto con 'gameStart'
                 break;
 
             case 'gameStart':
                 currentGameState = serverMessage.gameState;
-                playerColor = serverMessage.playerColor; // Confirmar/actualizar color del jugador
+                playerColor = serverMessage.playerColor;
                 juegoIniciado = true;
-                console.log("¡Juego iniciado!", currentGameState);
-                ui.ocultarSeleccionTiempoUI(); // Ocultar config de tiempo local si estaba visible
-                document.getElementById('configuracion_reglas').style.display = 'none'; \n                const controlesOnlineEl = document.getElementById('controles_online_juego'); \n                if (controlesOnlineEl) controlesOnlineEl.style.display = 'none'; // Ocultar config de reglas local
-                document.getElementById('controles_juego_inicial').style.display = 'none'; // Ocultar controles de sala
+                console.log(`[Cliente] ¡Juego iniciado! Soy ${playerColor}. Estado:`, currentGameState);
+
+                // Ocultar toda la sección de controles online, ya que el juego ha empezado
+                const controlesOnlineJuegoEl = document.getElementById('controles_online_juego');
+                if (controlesOnlineJuegoEl) controlesOnlineJuegoEl.style.display = 'none';
+
+                // También ocultar otros elementos de configuración si aún estuvieran visibles
+                ui.ocultarSeleccionTiempoUI();
+                const configReglasEl = document.getElementById('configuracion_reglas');
+                if (configReglasEl) configReglasEl.style.display = 'none';
+                // const controlesJuegoInicialEl = document.getElementById('controles_juego_inicial'); // No existe este ID
+                // if (controlesJuegoInicialEl) controlesJuegoInicialEl.style.display = 'none';
+
 
                 dibujarTableroYPiezas(currentGameState.piezas);
                 ui.actualizarIndicadorTurnoUI(currentGameState.turnoActual);
@@ -166,11 +186,16 @@ function conectarWebSocket() {
 
     ws.onclose = () => {
         console.log("Desconectado del servidor WebSocket.");
-        document.getElementById('estado_conexion_servidor').textContent = 'Desconectado. Intenta recargar.'; \n        document.getElementById('estado_conexion_servidor').style.color = 'red'; \n        document.getElementById('btn_crear_sala_online').disabled = true; \n        document.getElementById('btn_unirse_sala_online').disabled = true; \n        document.getElementById('input_codigo_sala_online').disabled = true;
-        juegoIniciado = false;
-        // TODO: Deshabilitar UI de juego, mostrar UI de conexión
+        document.getElementById('estado_conexion_servidor').textContent = 'Desconectado. Intenta recargar.';
+        document.getElementById('estado_conexion_servidor').style.color = 'red';
+        // Deshabilitar controles de sala
         document.getElementById('btn_crear_sala_online').disabled = true;
         document.getElementById('btn_unirse_sala_online').disabled = true;
+        document.getElementById('input_codigo_sala_online').disabled = true;
+        document.getElementById('select_color_ia').disabled = true;
+        document.getElementById('btn_jugar_vs_stockfish').disabled = true;
+        document.getElementById('btn_jugar_vs_cosmic').disabled = true;
+        juegoIniciado = false;
     };
 
     ws.onerror = (error) => {
@@ -235,16 +260,16 @@ function manejarClickCasilla(casillaClickeadaEl) {
         }
 
         // Es un intento de movimiento a una casilla vacía o con pieza enemiga
-        console.log(`Intentando mover pieza ${pMovidaObj.id} de ${cOrigenStr} a ${cDestinoStr}`);
+        const movePayload = {
+            piezaId: pMovidaObj.id,
+            casillaOrigen: cOrigenStr,
+            casillaDestino: cDestinoStr,
+            // promocionA: 'reina' // Ejemplo si se implementa promoción
+        };
+        console.log(`[Cliente] Intentando mover pieza. Enviando makeMove:`, movePayload);
         ws.send(JSON.stringify({
             type: 'makeMove',
-            payload: {
-                piezaId: pMovidaObj.id,
-                casillaOrigen: cOrigenStr,
-                casillaDestino: cDestinoStr,
-                // Opcional: si hay promoción de peón, enviar la pieza elegida
-                // promocionA: 'reina' (ejemplo)
-            }
+            payload: movePayload
         }));
 
         // Limpiar selección local. La UI se actualizará cuando llegue 'gameStateUpdate'.
@@ -300,19 +325,70 @@ function inicializarJuegoCliente() {
         // Configurar listeners para botones de sala (simulados por ahora)
         document.getElementById('btn_crear_sala_online').addEventListener('click', () => {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'createRoom' }));
+                const message = { type: 'createRoom' };
+                console.log("[Cliente] Enviando mensaje:", message);
+                ws.send(JSON.stringify(message));
             } else { ui.mostrarMensajeTemporalUI("No conectado al servidor.", 2000, "error"); }
         });
-        document.getElementById('btn_unirse_sala_online').addEventListener('click', () => {
+
+        // Listener para el botón de unirse a sala (usando el input)
+        const btnUnirseConInput = document.getElementById("btn_unirse_sala_online");
+        if (btnUnirseConInput) {
+            btnUnirseConInput.addEventListener("click", () => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const roomCodeToJoin = document.getElementById("input_codigo_sala_online").value;
+                    if (roomCodeToJoin) {
+                        const message = { type: "joinRoom", payload: { roomCode: roomCodeToJoin.trim().toUpperCase() } };
+                        console.log("[Cliente] Enviando mensaje:", message);
+                        ws.send(JSON.stringify(message));
+                    } else {
+                        ui.mostrarMensajeTemporalUI("Ingresa un código de sala.", 2000, "warning");
+                    }
+                } else { ui.mostrarMensajeTemporalUI("No conectado al servidor.", 2000, "error"); }
+            });
+        }
+
+        // Listeners para botones de IA
+        document.getElementById('btn_jugar_vs_stockfish').addEventListener('click', () => {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                const roomCodeToJoin = prompt("Ingresa el código de la sala:");
-                if (roomCodeToJoin) {
-                    ws.send(JSON.stringify({ type: 'joinRoom', payload: { roomCode: roomCodeToJoin.trim().toUpperCase() } }));
-                }
+                const colorPreferido = document.getElementById('select_color_ia').value;
+                const message = {
+                    type: 'createRoomVsAI',
+                    payload: {
+                        aiType: 'stockfish',
+                        playerPrefersColor: colorPreferido
+                    }
+                };
+                console.log("[Cliente] Enviando mensaje:", message);
+                ws.send(JSON.stringify(message));
+                document.getElementById('mensajes_estado_online').textContent = 'Creando sala vs Stockfish...';
             } else { ui.mostrarMensajeTemporalUI("No conectado al servidor.", 2000, "error"); }
         });
+
+        document.getElementById('btn_jugar_vs_cosmic').addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const colorPreferido = document.getElementById('select_color_ia').value;
+                const message = {
+                    type: 'createRoomVsAI',
+                    payload: {
+                        aiType: 'cosmic',
+                        playerPrefersColor: colorPreferido
+                    }
+                };
+                console.log("[Cliente] Enviando mensaje:", message);
+                ws.send(JSON.stringify(message));
+                document.getElementById('mensajes_estado_online').textContent = 'Creando sala vs Agente Cósmico...';
+            } else { ui.mostrarMensajeTemporalUI("No conectado al servidor.", 2000, "error"); }
+        });
+
+        // Deshabilitar botones al inicio
         document.getElementById('btn_crear_sala_online').disabled = true;
-        document.getElementById('btn_unirse_sala_online').disabled = true; \n        document.getElementById('input_codigo_sala_online').disabled = true; \n        document.getElementById('estado_conexion_servidor').textContent = 'Conectando...';
+        document.getElementById('btn_unirse_sala_online').disabled = true;
+        document.getElementById('input_codigo_sala_online').disabled = true;
+        document.getElementById('select_color_ia').disabled = true;
+        document.getElementById('btn_jugar_vs_stockfish').disabled = true;
+        document.getElementById('btn_jugar_vs_cosmic').disabled = true;
+        document.getElementById('estado_conexion_servidor').textContent = 'Conectando...';
 
         // Ocultar elementos de configuración local que ya no aplican
         // ui.ocultarSeleccionTiempoUI(); // Ya no existe esta función, los botones de tiempo se eliminaron del HTML
@@ -330,19 +406,22 @@ function inicializarJuegoCliente() {
 
 // Lógica de temporizador local eliminada. El servidor gestiona los tiempos.
 
-    const btnUnirse = document.getElementById("btn_unirse_sala_online");
-    if (btnUnirse) {
-        btnUnirse.addEventListener("click", () => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                const roomCodeToJoin = document.getElementById("input_codigo_sala_online").value;
-                if (roomCodeToJoin) {
-                    ws.send(JSON.stringify({ type: "joinRoom", payload: { roomCode: roomCodeToJoin.trim().toUpperCase() } }));
-                } else {
-                    ui.mostrarMensajeTemporalUI("Ingresa un código de sala.", 2000, "warning");
-                }
-            } else { ui.mostrarMensajeTemporalUI("No conectado al servidor.", 2000, "error"); }
-        });
-    }
+// El listener para btn_unirse_sala_online fue movido y consolidado dentro de inicializarJuegoCliente.
+// Este bloque ya no es necesario.
+// const btnUnirse = document.getElementById("btn_unirse_sala_online");
+// if (btnUnirse) {
+//     btnUnirse.addEventListener("click", () => {
+//         if (ws && ws.readyState === WebSocket.OPEN) {
+//             const roomCodeToJoin = document.getElementById("input_codigo_sala_online").value;
+//             if (roomCodeToJoin) {
+//                 ws.send(JSON.stringify({ type: "joinRoom", payload: { roomCode: roomCodeToJoin.trim().toUpperCase() } }));
+//             } else {
+//                 ui.mostrarMensajeTemporalUI("Ingresa un código de sala.", 2000, "warning");
+//             }
+//         } else { ui.mostrarMensajeTemporalUI("No conectado al servidor.", 2000, "error"); }
+//     });
+// }
+
 document.addEventListener('DOMContentLoaded', inicializarJuegoCliente);
 
 console.log("Fin de main.js online.");

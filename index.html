@@ -41,7 +41,24 @@
             <button id="btn_unirse_sala_online">Unirse a Sala</button>
         </div>
 
-        <div id="mensajes_estado_online" style="min-height: 20px; margin-top: 10px; font-style: italic;">
+        <!-- Nueva sección para Jugar contra IA -->
+        <div id="seccion_jugar_vs_ia" style="margin-top: 20px; padding-top:15px; border-top: 1px solid #ccc;">
+            <h3 style="margin-top:0; margin-bottom: 10px;">Jugar contra IA</h3>
+            <div style="margin-bottom:10px;">
+                <label for="select_color_ia" style="margin-right: 5px;">Tu Color:</label>
+                <select id="select_color_ia" style="margin-right: 10px; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    <option value="aleatorio">Aleatorio</option>
+                    <option value="blanco">Blanco</option>
+                    <option value="negro">Negro</option>
+                </select>
+            </div>
+            <div>
+                <button id="btn_jugar_vs_stockfish" style="margin-right: 5px; padding: 8px 12px; background-color: #5cb85c; color: white; border: none; border-radius: 4px; cursor: pointer;">vs Stockfish</button>
+                <button id="btn_jugar_vs_cosmic" style="padding: 8px 12px; background-color: #f0ad4e; color: white; border: none; border-radius: 4px; cursor: pointer;">vs Agente Cósmico</button>
+            </div>
+        </div>
+
+        <div id="mensajes_estado_online" style="min-height: 20px; margin-top: 15px; font-style: italic;">
             <!-- Mensajes como "Esperando oponente..." o errores aparecerán aquí -->
         </div>
     </div>
